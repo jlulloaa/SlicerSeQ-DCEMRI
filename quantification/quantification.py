@@ -14,7 +14,7 @@ from slicer.parameterNodeWrapper import (
     WithinRange,
 )
 
-from slicer import vtkMRMLScalarVolumeNode
+from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSequenceNode, vtkMRMLSegmentationNode
 
 
 #
@@ -29,25 +29,26 @@ class quantification(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("quantification")  # TODO: make this more human readable by adding spaces
+        self.parent.title = _("Parametric DCE-MRI")
         # TODO: set categories (folders where the module shows up in the module selector)
-        self.parent.categories = [translate("qSlicerAbstractCoreModule", "Examples")]
-        self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["John Doe (AnyWare Corp.)"]  # TODO: replace with "Firstname Lastname (Organization)"
+        self.parent.categories = [translate("qSlicerAbstractCoreModule", "Quantification")]
+        self.parent.dependencies = ["SequenceRegistration"]  # TODO: add here list of module names that this module requires
+        self.parent.contributors = ["Jose L. Ulloa (ISANDEX LTD.), Nasib Washal (Queen's Hospital)"] 
         # TODO: update with short description of the module and a link to online module documentation
         # _() function marks text as translatable to other languages
         self.parent.helpText = _("""
-This is an example of scripted loadable module bundled in an extension.
-See more information in <a href="https://github.com/organization/projectname#quantification">module documentation</a>.
+Slicer Extension to derive non-PK parametric maps from signal intensity analysis of DCE-MRI datasets. 
+For up-to-date user guide, go to <a href="https://gthub.com/jlulloaa/..."> official GitHub repository </a>.
 """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+This file was originally developed by Jose L. Ulloa, Nasib Washal. 
+It is derived from the extension <a href="https://github.com/rnadkarni2/SlicerBreast_DCEMRI_FTV"> Slicer DCEMRI FTV </a>. 
+This work was (partially) funded by… (grant Name and Number).
 """)
 
         # Additional initialization step after application startup is complete
-        slicer.app.connect("startupCompleted()", registerSampleData)
+        # slicer.app.connect("startupCompleted()", registerSampleData)
 
 
 #
@@ -55,49 +56,49 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 #
 
 
-def registerSampleData():
-    """Add data sets to Sample Data module."""
-    # It is always recommended to provide sample data for users to make it easy to try the module,
-    # but if no sample data is available then this method (and associated startupCompeted signal connection) can be removed.
+# def registerSampleData():
+#     """Add data sets to Sample Data module."""
+#     # It is always recommended to provide sample data for users to make it easy to try the module,
+#     # but if no sample data is available then this method (and associated startupCompeted signal connection) can be removed.
 
-    import SampleData
+#     import SampleData
 
-    iconsPath = os.path.join(os.path.dirname(__file__), "Resources/Icons")
+#     iconsPath = os.path.join(os.path.dirname(__file__), "Resources/Icons")
 
-    # To ensure that the source code repository remains small (can be downloaded and installed quickly)
-    # it is recommended to store data sets that are larger than a few MB in a Github release.
+#     # To ensure that the source code repository remains small (can be downloaded and installed quickly)
+#     # it is recommended to store data sets that are larger than a few MB in a Github release.
 
-    # quantification1
-    SampleData.SampleDataLogic.registerCustomSampleDataSource(
-        # Category and sample name displayed in Sample Data module
-        category="quantification",
-        sampleName="quantification1",
-        # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder.
-        # It can be created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
-        thumbnailFileName=os.path.join(iconsPath, "quantification1.png"),
-        # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
-        fileNames="quantification1.nrrd",
-        # Checksum to ensure file integrity. Can be computed by this command:
-        #  import hashlib; print(hashlib.sha256(open(filename, "rb").read()).hexdigest())
-        checksums="SHA256:998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
-        # This node name will be used when the data set is loaded
-        nodeNames="quantification1",
-    )
+#     # quantification1
+#     SampleData.SampleDataLogic.registerCustomSampleDataSource(
+#         # Category and sample name displayed in Sample Data module
+#         category="quantification",
+#         sampleName="quantification1",
+#         # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder.
+#         # It can be created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
+#         thumbnailFileName=os.path.join(iconsPath, "quantification1.png"),
+#         # Download URL and target file name
+#         uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
+#         fileNames="quantification1.nrrd",
+#         # Checksum to ensure file integrity. Can be computed by this command:
+#         #  import hashlib; print(hashlib.sha256(open(filename, "rb").read()).hexdigest())
+#         checksums="SHA256:998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
+#         # This node name will be used when the data set is loaded
+#         nodeNames="quantification1",
+#     )
 
-    # quantification2
-    SampleData.SampleDataLogic.registerCustomSampleDataSource(
-        # Category and sample name displayed in Sample Data module
-        category="quantification",
-        sampleName="quantification2",
-        thumbnailFileName=os.path.join(iconsPath, "quantification2.png"),
-        # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
-        fileNames="quantification2.nrrd",
-        checksums="SHA256:1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
-        # This node name will be used when the data set is loaded
-        nodeNames="quantification2",
-    )
+#     # quantification2
+#     SampleData.SampleDataLogic.registerCustomSampleDataSource(
+#         # Category and sample name displayed in Sample Data module
+#         category="quantification",
+#         sampleName="quantification2",
+#         thumbnailFileName=os.path.join(iconsPath, "quantification2.png"),
+#         # Download URL and target file name
+#         uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
+#         fileNames="quantification2.nrrd",
+#         checksums="SHA256:1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
+#         # This node name will be used when the data set is loaded
+#         nodeNames="quantification2",
+#     )
 
 
 #
@@ -110,15 +111,16 @@ class quantificationParameterNode:
     """
     The parameters needed by module.
 
-    inputVolume - The volume to threshold.
+    input4DVolume - The volume to threshold.
     imageThreshold - The value at which to threshold the input volume.
     invertThreshold - If true, will invert the threshold.
     thresholdedVolume - The output volume that will contain the thresholded volume.
     invertedVolume - The output volume that will contain the inverted thresholded volume.
     """
 
-    inputVolume: vtkMRMLScalarVolumeNode
-    imageThreshold: Annotated[float, WithinRange(-100, 500)] = 100
+    input4DVolume: vtkMRMLSequenceNode #vtkMRMLScalarVolumeNode
+    inputMaskVolume: vtkMRMLSegmentationNode #vtkMRMLScalarVolumeNode
+    # imageThreshold: Annotated[float, WithinRange(-100, 500)] = 100
     invertThreshold: bool = False
     thresholdedVolume: vtkMRMLScalarVolumeNode
     invertedVolume: vtkMRMLScalarVolumeNode
@@ -150,7 +152,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Additional widgets can be instantiated manually and added to self.layout.
         uiWidget = slicer.util.loadUI(self.resourcePath("UI/quantification.ui"))
         self.layout.addWidget(uiWidget)
-        self.ui = slicer.util.childWidgetVariables(uiWidget)
+        self.ui = slicer.util.childWidgetVariables(uiWidget)    
 
         # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -209,10 +211,16 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.setParameterNode(self.logic.getParameterNode())
 
         # Select default input nodes if nothing is selected yet to save a few clicks for the user
-        if not self._parameterNode.inputVolume:
-            firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
+        if not self._parameterNode.input4DVolume:
+            firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSequenceNode")
             if firstVolumeNode:
-                self._parameterNode.inputVolume = firstVolumeNode
+                self._parameterNode.input4DVolume = firstVolumeNode
+                
+        # Select default input nodes if nothing is selected yet to save a few clicks for the user
+        if not self._parameterNode.inputMaskVolume:
+            firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSegmentationNode")
+            if firstVolumeNode:
+                self._parameterNode.inputMaskVolume = firstVolumeNode
 
     def setParameterNode(self, inputParameterNode: Optional[quantificationParameterNode]) -> None:
         """
@@ -232,7 +240,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._checkCanApply()
 
     def _checkCanApply(self, caller=None, event=None) -> None:
-        if self._parameterNode and self._parameterNode.inputVolume and self._parameterNode.thresholdedVolume:
+        if self._parameterNode and self._parameterNode.input4DVolume and self._parameterNode.inputMaskVolume and self._parameterNode.thresholdedVolume:
             self.ui.applyButton.toolTip = _("Compute output volume")
             self.ui.applyButton.enabled = True
         else:
