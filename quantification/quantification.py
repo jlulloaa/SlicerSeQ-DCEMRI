@@ -2,7 +2,7 @@ import logging
 import os
 from typing import Annotated, Optional
 
-import vtk
+import vtk, ctk
 
 import slicer
 from slicer.i18n import tr as _
@@ -12,10 +12,13 @@ from slicer.util import VTKObservationMixin
 from slicer.parameterNodeWrapper import (
     parameterNodeWrapper,
     WithinRange,
+    parameterPack,
 )
 
-from slicer import vtkMRMLScalarVolumeNode, vtkMRMLSequenceNode, vtkMRMLSegmentationNode, vtkMRMLTableNode, vtkMRMLPlotSeriesNode, vtkMRMLPlotChartNode
-
+# from slicer import vtkMRMLScalarVolumeNode, 
+from slicer import vtkMRMLSequenceNode, vtkMRMLSegmentationNode, vtkMRMLTableNode
+from slicer import vtkMRMLLabelMapVolumeNode
+# from slicer import vtkMRMLPlotSeriesNode, vtkMRMLPlotChartNode
 
 import numpy as np
 
@@ -107,6 +110,12 @@ This work was (partially) funded by… (grant Name and Number).
 # quantificationParameterNode
 #
 
+# @parameterPack
+# class relevantDCEindices:
+#     preContrastIndex: Annotated[float, WithinRange(0.0, 1.0)] = 0.0
+#     earlyPostContrastIndex: Annotated[float, WithinRange(0.0, 1.0)] = 0.0
+#     latePostContrastIndex: Annotated[float, WithinRange(0.0, 1.0)] = 0.0
+    
 
 @parameterNodeWrapper
 class quantificationParameterNode:
@@ -122,6 +131,10 @@ class quantificationParameterNode:
 
     input4DVolume: vtkMRMLSequenceNode #vtkMRMLScalarVolumeNode
     inputMaskVolume: vtkMRMLSegmentationNode #vtkMRMLScalarVolumeNode
+    PreContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices
+    EarlyPostContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices
+    LatePostContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices
+    # segmentationList: vtkMRMLLabelMapVolumeNode
     # imageThreshold: Annotated[float, WithinRange(-100, 500)] = 100
     # Setting up table and plot nodes (do we really need this?)
     # tableTICNode : vtkMRMLTableNode #  = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode")
@@ -174,21 +187,50 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         uiWidget = slicer.util.loadUI(self.resourcePath("UI/quantification.ui"))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
+        
+        # JU - Segmentation List Selector 
+        # parametersCollapsibleButton = ctk.ctkCollapsibleButton()
+        # parametersCollapsibleButton.text = "Parameters"
+        # self.layout.addWidget(parametersCollapsibleButton)
 
-        # # Output table selector
+        # Layout within the dummy collapsible button
+        # parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
+
+        # Create segment editor to get access to effects        
+        self.segmentationListSelector = slicer.qMRMLSegmentEditorWidget()
+        # self.segmentationListSelector = slicer.qMRMLNodeComboBox()
+        self.segmentationListSelector.setMRMLScene(slicer.mrmlScene)
+        # To show segment editor widget (useful for debugging): segmentEditorWidget.show()
+        self.segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
+        slicer.mrmlScene.AddNode(self.segmentEditorNode)
+        # self.segmentationListSelector.nodeTypes = ["vtkSegmentation"]#["vtkMRMLLabelMapVolumeNode"]
+        self.segmentationListSelector.enabled = False
+        # self.segmentationListSelector.addEnabled = False
+        # self.segmentationListSelector.selectNodeUponCreation = True
+        # self.segmentationListSelector.renameEnabled = False
+        # self.segmentationListSelector.removeEnabled = False
+        # self.segmentationListSelector.noneEnabled = False
+        self.segmentationListSelector.setToolTip(_("Select label mask"))
+        # self.segmentationListSelector.setCurrentNode(None)
+        # # addRow: appends new element
+        self.ui.segmentEditorCollapsibleButton.layout().addRow(self.segmentationListSelector)
+        self.segmentationListSelector.setMRMLSegmentEditorNode(self.segmentEditorNode)
+
+        # JU - Output table selector
         self.outputTICTableSelector = slicer.qMRMLNodeComboBox()
         self.outputTICTableSelector.noneDisplay = _("Create new table")
         self.outputTICTableSelector.setMRMLScene(slicer.mrmlScene)
         self.outputTICTableSelector.nodeTypes = ["vtkMRMLTableNode"]
         self.outputTICTableSelector.enabled = False
-        self.outputTICTableSelector.addEnabled = True
+        self.outputTICTableSelector.addEnabled = False
         self.outputTICTableSelector.selectNodeUponCreation = True
-        self.outputTICTableSelector.renameEnabled = True
-        self.outputTICTableSelector.removeEnabled = True
-        self.outputTICTableSelector.noneEnabled = True
+        self.outputTICTableSelector.renameEnabled = False
+        self.outputTICTableSelector.removeEnabled = False
+        self.outputTICTableSelector.noneEnabled = False
         self.outputTICTableSelector.setToolTip(_("Select a Table"))
         self.outputTICTableSelector.setCurrentNode(None)
-        self.ui.outputFormLayout.addRow(_("Output table:"), self.outputTICTableSelector)
+        # use insertRow to append the new element into a specific row (i.e. FormLayout.insertRow(position, Text, Table))
+        self.ui.parametersFormLayout.addRow(_("Output tables:"), self.outputTICTableSelector)
         
         # JU - Initialise plot series and chart nodes:
         # self.plotSeriesNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLPlotSeriesNode")
@@ -205,7 +247,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # Connections
         # JU - Any change in the input volume will be reflected by a change in the scene
-        self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onInputSelect())
+        # self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onInputSelect())
+        # self.ui.inputMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onMaskSelect())
         # JU - Any change in the selected index defining the DCE timepoints of interest, 
         # will be reflected as a change in the visualisation:
         self.ui.indexSliderPreContrast.connect("valueChanged(double)", self.setSequenceItemIndex)
@@ -213,7 +256,14 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.indexSliderLatePostContrast.connect("valueChanged(double)", self.setSequenceItemIndex)
         # JU - Connect the output table to ensure it gets updated whenever the Apply buttons is pressed:
         # self.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onNodeSelectionChanged)
-        
+        # JU - Add an additional connector to monitor the collapsible status of the segmentation editor.
+        #      by monitoring it, will display options to select a segmentation mask from an updated list:
+        self.ui.segmentEditorCollapsibleButton.connect("contentsCollapsed(bool)", self.monitorStatusSegmemtation)
+        # self.ui.segmentListSelector.connect("highlighted(int)", self.selectedMaskIndex)
+        self.ui.segmentListSelector.connect("currentIndexChanged(int)", self.updateSelectedSegmentMask)
+        # self.ui.segmentListSelector.connect("currentTextChanged(str)", self.updateSelectedSegmentMaskText)
+        # self.ui.segmentListSelector.connect("highlighted(int)", self.selectSegmentMask)
+        # self.ui.segmentListSelector.connect(self.selectSegmentMask)
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
@@ -263,11 +313,12 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self._parameterNode.input4DVolume:
             firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSequenceNode")
             if firstVolumeNode:
-                self._parameterNode.input4DVolume = firstVolumeNode
+                self._parameterNode.input4DVolume = firstVolumeNode               
                 # Initialise the index slider:
                 # JU - DEBUG
                 # print(f'Populating automatically the Input Selector')
-                # self.refreshIndexSelectors(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
+                self.ui.parametersCollapsibleButton.enabled=True
+                self.refreshIndexSelectors(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
             # else:
                 # self.refreshIndexSelectors(0)
             
@@ -276,6 +327,13 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSegmentationNode")
             if firstVolumeNode:
                 self._parameterNode.inputMaskVolume = firstVolumeNode
+            else:
+                # There are no segmentation masks available, so let's create one by default
+                self._parameterNode.inputMaskVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "Segmentation Mask")
+                # But keeps the selector disabled until the segmentation has a label map
+                self.ui.inputMaskSelector.enabled = False
+                # And enable the connection with the segment editor to create a label map:
+                self.segmentationListSelector.enabled = True
                 
         # Select default plot and tables nodes, to avoid creating new ones:
         if not self.outputTICTableSelector.currentNode():
@@ -338,6 +396,18 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # ui element that needs connection.
             self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+            if self._parameterNode.input4DVolume: 
+                self.refreshIndexSelectors(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
+                self.ui.segmentEditorCollapsibleButton.enabled = True
+
+            if self._parameterNode.inputMaskVolume:
+                # enable the segment editor if a segmentation mask is already loaded
+                self.segmentationListSelector.enabled = True
+
+            if (self.ui.segmentEditorCollapsibleButton.enabled) & (self.segmentationListSelector.enabled):
+                # If there both, the input volume and a segmentation mask, set them up in the segment editor:
+                self.onMaskSelect()
+                
             self._checkCanApply()
         # JU - DEBUGMODE
         print('setParameterNode - End')
@@ -346,32 +416,39 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode and self._parameterNode.input4DVolume and self._parameterNode.inputMaskVolume:
             # JU - DEBUGMODE
             print("Compute output volume")
+            # TODO: update legend indicating the index corresponds to the Pre-Contrast phase
+            # self.setSequenceItemIndex(self.ui.indexSliderPreContrast.value)
+            self.ui.parametersCollapsibleButton.enabled=True
             self.ui.applyButton.toolTip = _("Compute output volume")
             self.ui.applyButton.enabled = True
+            # self.outputTICTableSelector.enabled = True
         else:
             # JU - DEBUGMODE
             print('Nothing to do, will keep the button disabled...')
             # self.ui.applyButton.toolTip = _("Select input and output volume nodes")
             self.ui.applyButton.toolTip = _("Select input and mask volumes nodes")
             self.ui.applyButton.enabled = False
+            
         if self._parameterNode.input4DVolume:
-            # TODO: update legend indicating the index corresponds to the Pre-Contrast phase
-            self.setSequenceItemIndex(self.ui.indexSliderPreContrast.value)
+        #     self.ui.parametersCollapsibleButton.enabled=True
+            self.ui.segmentEditorCollapsibleButton.enabled = True
 
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
         with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
             # Enable Table selection and update chart window:
+            self.plotSeriesNode.SetName(self.ui.segmentListSelector.currentText)
             self.update_plot_window()
             # Compute output
-            self.logic.process(self.ui.inputSelector.currentNode(), 
-                               self.ui.inputMaskSelector.currentNode(), 
+            self.logic.process(self._parameterNode.input4DVolume, # self.ui.inputSelector.currentNode(), 
+                               self._parameterNode.inputMaskVolume, # self.ui.inputMaskSelector.currentNode(), 
                                {'TICTable': [self.TICTableNode, self.TICTableRowNames],
                                 'SummaryTable': [self.SummaryTableNode, self.SummaryTableRowNames]}, #outputTICTableSelector.currentNode(),
-                               int(self.ui.indexSliderPreContrast.value), 
-                               int(self.ui.indexSliderEarlyPostContrast.value), 
-                               int(self.ui.indexSliderLatePostContrast.value), #)
+                               int(self._parameterNode.PreContrastIndex), #int(self.ui.indexSliderPreContrast.value), 
+                               int(self._parameterNode.EarlyPostContrastIndex), # int(self.ui.indexSliderEarlyPostContrast.value), 
+                               int(self._parameterNode.LatePostContrastIndex), #int(self.ui.indexSliderLatePostContrast.value), #)
+                               self.ui.segmentListSelector.currentIndex,
                                self.MAX_PC)
                             #    self.ui.imageThresholdSliderWidget.value, self.ui.invertOutputCheckBox.checked)
             # Compute inverted output (if needed)
@@ -383,19 +460,101 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # JU - user-defined connnector functions
     def onInputSelect(self):
-        if not self.ui.inputSelector.currentNode():
+        if not self._parameterNode.input4DVolume: #self.ui.inputSelector.currentNode():
             # print('No nodes to use')
             numberOfDataNodes = 0
         else:
-            numberOfDataNodes = self.ui.inputSelector.currentNode().GetNumberOfDataNodes()
+            numberOfDataNodes = self._parameterNode.input4DVolume.GetNumberOfDataNodes() #self.ui.inputSelector.currentNode().GetNumberOfDataNodes()
             # JU - DEBUG
             # Get some information of the selected sequence:
+            self.ui.segmentEditorCollapsibleButton.enabled = True
+            self.segmentationListSelector.enabled = True
         print(f'Number of items in the sequence: {numberOfDataNodes}')
         self.refreshIndexSelectors(numberOfDataNodes)
+    
+    def monitorStatusSegmemtation(self):
+        # Get an updated segment list:
+        segmentList = self.logic.getSegmentList(self._parameterNode.inputMaskVolume)
+        # for segments in segmentList:
+        #     print(f'Segment Name: {segments.GetName()}')
+            
+        if self.ui.segmentEditorCollapsibleButton.collapsed:
+            print(f'show selection list with the following options:')
+            # Get currently selected index and text:
+            currIndex = self.ui.segmentListSelector.currentIndex
+            currText = self.ui.segmentListSelector.currentText
+            print(f'Currently, this text {currText} and index {currIndex} are selected')
+            # Update the content of the list:
+            segmentListItems = [segment.GetName() for segment in segmentList]
+            # is the new Clear the old list:
+            print(f'Clearing the list...')
+            self.ui.segmentListSelector.clear()
+            # Re-populate with the updated list:
+            print(f'Re-populating the list...')
+            self.ui.segmentListSelector.addItems(segmentListItems)
+            # check wether the udpated list is the same as before, or the items' name have been modified
+            # get index where the already selected text is in the new list:
+            if currText in segmentListItems:
+                # find the position
+                updatedIndex = segmentListItems.index(currText)
+                print(f'Current Text {currText} still part of the list and is located at {updatedIndex}')
+            else:
+                updatedIndex = 0
+                print('Segment Mask has been deleted, restart the selection at 0')
+                                
+            self.updateSelectedSegmentMask(updatedIndex)
+            self.ui.segmentListSelector.enabled=True
+        else:
+            print(f'disable/hide the list of options')
+            self.ui.segmentListSelector.enabled=False
+    
+    def updateSelectedSegmentMask(self, updatedIndex):
+        updatedIndex = np.max([0, updatedIndex])
+        self.ui.segmentListSelector.setCurrentIndex(updatedIndex)
+        print(f'List Selected Text: {self.ui.segmentListSelector.currentText}') # itemText(updatedIndex)}')
+        print(f'List Selection: {self.ui.segmentListSelector.currentIndex}')
+        # Set visibility for the selected segmentation label:
+        displayNode = self._parameterNode.inputMaskVolume.GetDisplayNode()
+        displayNode.SetAllSegmentsVisibility(False) # Hide all segments
+        displayNode.SetSegmentVisibility(self._parameterNode.inputMaskVolume.GetSegmentation().GetNthSegmentID(updatedIndex), True)
+        
+    def onMaskSelect(self):
+        
+        # TODO: here enable the options to select a particular segmentation label (e.g. Tumour Tissue)
+        print(f'onMaskSelect Function')
+        # if self.ui.inputMaskSelector.currentNode():
+        # self.ui.segmentEditorCollapsibleButton.enabled = True
+        # segmentList = self.logic.getSegmentList(self.ui.inputMaskSelector.currentNode())
+        segmentList = self.logic.getSegmentList(self._parameterNode.inputMaskVolume)
+        # Update the segmentListSelector:
+        segmentListItems = [segment.GetName() for segment in segmentList]
+        self.ui.segmentListSelector.clear()
+        self.ui.segmentListSelector.addItems(segmentListItems)
+        # JU - DEBUG
+        print('Segment Names: ' + '\n'.join(segmentListItems))
+            
+        # # self.segmentationListSelector = segmentList#.setCurrentNode(segmentList[0])
+        # self.segmentationListSelector.setCurrentNode(segmentList[0])
+        # self.segmentationListSelector.enabled = True
+        self.setSequenceItemIndex(self._parameterNode.EarlyPostContrastIndex) # ui.indexSliderEarlyPostContrast.value)
+        # self.segmentationListSelector.setSegmentationNode(self.ui.inputMaskSelector.currentNode())
+        self.segmentationListSelector.setMRMLSegmentEditorNode(self.segmentEditorNode)
+        self.segmentationListSelector.setSegmentationNode(self._parameterNode.inputMaskVolume) # self.ui.inputMaskSelector.currentNode())
+        self.segmentationListSelector.setSourceVolumeNode(self.currentVolume)
+        self.ui.segmentEditorCollapsibleButton.text = _("Add/Edit segmentation label")
+        self.ui.segmentEditorCollapsibleButton.collapsed = False
 
+        # print(segmentList)
+        # workflow: 
+        # 1) After a segmentation mask is selected
+        # 2) Populate a drop down list with the segmentation labels
+        # 3) Enables the drop down list with the segment masks
+        
     # JU - separate to refresh the index selctors everytime the module is loaded (not only when the input selector changes)
     def refreshIndexSelectors(self, maxIndex):
         for sequenceItemSelectorWidget in [self.ui.indexSliderPreContrast, self.ui.indexSliderEarlyPostContrast, self.ui.indexSliderLatePostContrast]:
+        # for sequenceItemSelectorWidget in [self._parameterNode.PreContrastIndex, self._parameterNode.EarlyPostContrastIndex, self._parameterNode.LatePostContrastIndex]:
+            print(f'sequenceItemSelectorWidget: {sequenceItemSelectorWidget}')
             if maxIndex < 1:
                 sequenceItemSelectorWidget.maximum = 0
                 sequenceItemSelectorWidget.enabled = False
@@ -403,25 +562,25 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 sequenceItemSelectorWidget.maximum = maxIndex-1
                 sequenceItemSelectorWidget.enabled = True
 
-        self.ui.indexSliderPreContrast.value =  0
-        self.ui.indexSliderEarlyPostContrast.value =  1
-        self.ui.indexSliderLatePostContrast.value = self.ui.indexSliderLatePostContrast.maximum
+        self._parameterNode.PreContrastIndex = 0 #ui.indexSliderPreContrast.value =  0
+        self._parameterNode.EarlyPostContrastIndex =  1
+        self._parameterNode.LatePostContrastIndex = sequenceItemSelectorWidget.maximum
         # JU - DEBUG
-        print(f'Pre Contrast slider: {self.ui.indexSliderPreContrast.value}')
-        print(f'Early Post Contrast slider: {self.ui.indexSliderEarlyPostContrast.value}')
-        print(f'Late Post Contrast slider: {self.ui.indexSliderLatePostContrast.value}')
+        # print(f'Pre Contrast slider: {self.ui.indexSliderPreContrast.value}')
+        # print(f'Early Post Contrast slider: {self.ui.indexSliderEarlyPostContrast.value}')
+        # print(f'Late Post Contrast slider: {self.ui.indexSliderLatePostContrast.value}')
         
     def setSequenceItemIndex(self, index):
-        sequenceBrowserNode = self.logic.findBrowserForSequence(self.ui.inputSelector.currentNode())
+        sequenceBrowserNode = self.logic.findBrowserForSequence(self._parameterNode.input4DVolume) #ui.inputSelector.currentNode())
         # JU - DEBUGMODE
         print(f'Selected Sequence from browser is {sequenceBrowserNode.GetName()}')
         # if sequenceBrowserNode:
         if index is not None:
             sequenceBrowserNode.SetSelectedItemNumber(int(index))
-        currentVolume = sequenceBrowserNode.GetProxyNode(self.ui.inputSelector.currentNode())
+        self.currentVolume = sequenceBrowserNode.GetProxyNode(self._parameterNode.input4DVolume) #self.ui.inputSelector.currentNode())
         # JU - This shows the actual volume in the viewer
         # (https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#show-a-volume-in-slice-views)
-        self.updateViewer(currentVolume)
+        self.updateViewer(self.currentVolume)
         # JU - DEBUG
         # voxelArray = slicer.util.arrayFromVolume(currentVolume)
         # print(f'Mean value: {voxelArray.mean()}')
@@ -470,6 +629,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def update_plot_window(self):
         # enable TIC table:
         self.outputTICTableSelector.enabled=True
+        self.ui.outputsCollapsibleButton.enabled=True
         # display table:
         self.logic.displayTable(self.SummaryTableNode) #outputTICTableSelector.currentNode())
         # updating plot in chart view:
@@ -509,6 +669,13 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 return browserNode
         return None
     
+    def getSegmentList(self, maskVolumeNode):
+
+        nsegments = maskVolumeNode.GetSegmentation().GetNumberOfSegments()
+        segmentList = [maskVolumeNode.GetSegmentation().GetNthSegment(idx) for idx in range(nsegments)]
+
+        return segmentList
+
     def displayTable(self, currentTable):
         slicer.app.applicationLogic().GetSelectionNode().SetActiveTableID(currentTable.GetID())
         currentTable.SetUseColumnTitleAsColumnHeader(True)  # Make column titles visible (instead of column names)
@@ -582,17 +749,13 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         segStatLogic.computeStatistics()
         stats = segStatLogic.getStatistics()
 
-        # Display volume of each segment
-        for segmentId in stats["SegmentIDs"]:
-            volume_cm3 = stats[segmentId,"LabelmapSegmentStatisticsPlugin.volume_cm3"]
-            segmentName = maskVolume.GetSegmentation().GetSegment(segmentId).GetName()
-            print(f"{segmentName} volume = {volume_cm3} cm3")
+        # Get the segment selected by the list "Segment Label Mask":
+        segmentID = maskVolume.GetSegmentation().GetNthSegmentID(segmentNodeIndex)
+        segmentName = maskVolume.GetSegmentation().GetSegment(segmentID).GetName()
+        # Get Segment volume:
+        volume_cm3 = stats[segmentID,"LabelmapSegmentStatisticsPlugin.volume_cm3"]            
         end_proc_mask_time = time.perf_counter()
-            
-        # Get the first segment in the list (later will add a selector to choose from multiple segments)
-        # TODO: Add selector option in the case of multiples segment labels (e.g. multiples tissues)
-        segmentID = maskVolume.GetSegmentation().GetNthSegmentID(0)
-        
+
         # JU - DEBUG Mode:
         print(f'Segment name: {segmentID}')
         print(f'Pre-Contrast Index: {preContrastIndex}')
@@ -634,9 +797,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                     
         [m_slope, n_coeff], time_intensity_curve[1:,2] = self.simple_linear_fit(time_intensity_curve[1:,0], time_intensity_curve[1:,1])
         print(f'Mean Values: {time_intensity_curve}') # should match the mean value of LabelStatistics calculation as a double-check
-        labelColumnContent = ['Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope']
-        statsColumnContent = [max_ENH[points].mean(), delta_ENH[points].mean(), first_pass_ENH[points].mean(), m_slope]
-        unitsColumnContent = ['%', '%', '%', '[]']
+        labelColumnContent = ['Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', 'ROI volume']
+        statsColumnContent = [max_ENH[points].mean(), delta_ENH[points].mean(), first_pass_ENH[points].mean(), m_slope, volume_cm3]
+        unitsColumnContent = ['%', '%', '%', '[]', 'cm3']
         labelColumn = vtk.vtkStringArray()
         labelColumn.SetName(tableNodeDict['SummaryTable'][1][0])
         statsColumn = vtk.vtkDoubleArray()
