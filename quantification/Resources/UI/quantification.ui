@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>473</width>
-    <height>698</height>
+    <height>916</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -121,51 +121,46 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_5">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="segmentEditorCollapsibleButton">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="text">
+      <string>Segment Editor</string>
+     </property>
+     <property name="collapsed">
+      <bool>false</bool>
+     </property>
+     <layout class="QFormLayout" name="segmentEditorFormLayout">
+      <item row="0" column="1">
+       <widget class="qMRMLSegmentEditorWidget" name="segmentEditorWidget">
+        <property name="defaultTerminologyEntrySettingsKey">
+         <string notr="true"/>
         </property>
-        <property name="text">
-         <string>Segment Label Mask:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QComboBox" name="segmentListSelector">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="editable">
-         <bool>true</bool>
-        </property>
-        <property name="currentText">
-         <string/>
-        </property>
-        <property name="Select a Mask" stdset="0">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="ctkCollapsibleButton" name="segmentEditorCollapsibleButton">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="text">
-         <string>Segment Editor</string>
-        </property>
-        <property name="collapsed">
-         <bool>true</bool>
-        </property>
-        <layout class="QFormLayout" name="segmentEditorFormLayout"/>
        </widget>
       </item>
      </layout>
     </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer_2">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>10</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget"/>
    </item>
    <item>
     <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
@@ -222,7 +217,7 @@
          <double>100.000000000000000</double>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>PreContrastIndex</string>
+         <string>preContrastIndex</string>
         </property>
        </widget>
       </item>
@@ -257,7 +252,7 @@
          <double>1.000000000000000</double>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>EarlyPostContrastIndex</string>
+         <string>earlyPostContrastIndex</string>
         </property>
        </widget>
       </item>
@@ -292,7 +287,7 @@
          <double>1.000000000000000</double>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>LatePostContrastIndex</string>
+         <string>latePostContrastIndex</string>
         </property>
        </widget>
       </item>
@@ -302,7 +297,7 @@
    <item>
     <widget class="ctkCollapsibleButton" name="outputsCollapsibleButton">
      <property name="enabled">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -317,7 +312,7 @@
       <bool>false</bool>
      </property>
      <layout class="QFormLayout" name="parametersFormLayout">
-      <item row="0" column="0">
+      <item row="1" column="0">
        <widget class="QLabel" name="label_4">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -330,7 +325,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
+      <item row="1" column="1">
        <widget class="ctkSliderWidget" name="enhacementThresholdValue">
         <property name="enabled">
          <bool>false</bool>
@@ -420,6 +415,16 @@
    <extends>QWidget</extends>
    <header>qMRMLWidget.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSegmentSelectorWidget</class>
+   <extends>qMRMLWidget</extends>
+   <header>qMRMLSegmentSelectorWidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSegmentEditorWidget</class>
+   <extends>qMRMLWidget</extends>
+   <header>qMRMLSegmentEditorWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
@@ -517,6 +522,134 @@
     <hint type="destinationlabel">
      <x>331</x>
      <y>248</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>inputMaskSelector</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>segmentSelectorWidget</receiver>
+   <slot>setCurrentNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>303</x>
+     <y>72</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>236</x>
+     <y>108</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>segmentSelectorWidget</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>236</x>
+     <y>348</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>236</x>
+     <y>108</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>segmentSelectorWidget</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>inputMaskSelector</receiver>
+   <slot>setCurrentNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>236</x>
+     <y>108</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>303</x>
+     <y>72</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>segmentEditorWidget</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>236</x>
+     <y>457</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>237</x>
+     <y>287</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>inputSelector</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>segmentEditorWidget</receiver>
+   <slot>setSourceVolumeNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>303</x>
+     <y>45</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>237</x>
+     <y>287</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>inputMaskSelector</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>segmentEditorWidget</receiver>
+   <slot>setSegmentationNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>303</x>
+     <y>72</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>237</x>
+     <y>287</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>segmentEditorWidget</sender>
+   <signal>segmentationNodeChanged(vtkMRMLSegmentationNode*)</signal>
+   <receiver>segmentSelectorWidget</receiver>
+   <slot>update()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>237</x>
+     <y>287</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>236</x>
+     <y>570</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>segmentEditorWidget</sender>
+   <signal>segmentationNodeChanged(vtkMRMLSegmentationNode*)</signal>
+   <receiver>inputMaskSelector</receiver>
+   <slot>update()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>237</x>
+     <y>287</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>303</x>
+     <y>72</y>
     </hint>
    </hints>
   </connection>
