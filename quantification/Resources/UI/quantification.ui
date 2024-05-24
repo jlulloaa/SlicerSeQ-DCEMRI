@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>473</width>
+    <width>533</width>
     <height>916</height>
    </rect>
   </property>
@@ -23,8 +23,33 @@
       <string>Inputs</string>
      </property>
      <layout class="QFormLayout" name="inputFormLayout">
-      <item row="0" column="0">
+      <item row="0" column="0" colspan="2">
        <widget class="QLabel" name="labelInput4Dvolume">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::Panel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Raised</enum>
+        </property>
+        <property name="text">
+         <string>Input Sequence (4D volume)</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignHCenter|Qt::AlignTop</set>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -32,11 +57,127 @@
          </sizepolicy>
         </property>
         <property name="text">
-         <string>Input 4D volume:</string>
+         <string>Identify relevant timepoints</string>
         </property>
+        <layout class="QFormLayout" name="identifyTimepointsFormLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelSelectPreContrast">
+           <property name="toolTip">
+            <string>Index of pre-contras image</string>
+           </property>
+           <property name="text">
+            <string>Pre-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderPreContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the pre-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>preContrastIndex</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelSelectEarlyPostContrast">
+           <property name="toolTip">
+            <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
+           </property>
+           <property name="text">
+            <string>Early Post-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the Early post-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>earlyPostContrastIndex</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelSelectLatePostContrast">
+           <property name="toolTip">
+            <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
+           </property>
+           <property name="text">
+            <string>Late Post-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderLatePostContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the Late post-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>latePostContrastIndex</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
-      <item row="0" column="1">
+      <item row="1" column="0" colspan="2">
        <widget class="qMRMLNodeComboBox" name="inputSelector">
         <property name="enabled">
          <bool>false</bool>
@@ -78,20 +219,29 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="labelInputMaskVolume">
+      <item row="3" column="0" colspan="2">
+       <widget class="QLabel" name="labelInputMask">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="frameShape">
+         <enum>QFrame::Panel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Raised</enum>
+        </property>
         <property name="text">
-         <string>ROI Mask 3D Volume:</string>
+         <string>Regions of Interest - Segmentation Masks</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignHCenter|Qt::AlignTop</set>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="4" column="0" colspan="2">
        <widget class="qMRMLNodeComboBox" name="inputMaskSelector">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -121,174 +271,26 @@
         </property>
        </widget>
       </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="segmentEditorCollapsibleButton">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
-     <property name="text">
-      <string>Segment Editor</string>
-     </property>
-     <property name="collapsed">
-      <bool>false</bool>
-     </property>
-     <layout class="QFormLayout" name="segmentEditorFormLayout">
-      <item row="0" column="1">
-       <widget class="qMRMLSegmentEditorWidget" name="segmentEditorWidget">
-        <property name="defaultTerminologyEntrySettingsKey">
-         <string notr="true"/>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer_2">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>10</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item>
-    <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget"/>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="text">
-      <string>Identify Timepoints</string>
-     </property>
-     <layout class="QFormLayout" name="identifyTimepointsFormLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="labelSelectPreContrast">
-        <property name="toolTip">
-         <string>Index of pre-contras image</string>
+      <item row="5" column="0" colspan="2">
+       <widget class="ctkCollapsibleButton" name="segmentEditorCollapsibleButton">
+        <property name="enabled">
+         <bool>true</bool>
         </property>
         <property name="text">
-         <string>Pre-Contrast Index:</string>
+         <string>Add/Edit Segmentation Mask</string>
         </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="ctkSliderWidget" name="indexSliderPreContrast">
-        <property name="enabled">
-         <bool>false</bool>
+        <property name="collapsed">
+         <bool>true</bool>
         </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Select the index corresponding to the pre-contrast image</string>
-        </property>
-        <property name="decimals">
-         <number>0</number>
-        </property>
-        <property name="pageStep">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>100.000000000000000</double>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>preContrastIndex</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="labelSelectEarlyPostContrast">
-        <property name="toolTip">
-         <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
-        </property>
-        <property name="text">
-         <string>Early Post-Contrast Index:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Select the index corresponding to the Early post-contrast image</string>
-        </property>
-        <property name="decimals">
-         <number>0</number>
-        </property>
-        <property name="pageStep">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>earlyPostContrastIndex</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="labelSelectLatePostContrast">
-        <property name="toolTip">
-         <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
-        </property>
-        <property name="text">
-         <string>Late Post-Contrast Index:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="ctkSliderWidget" name="indexSliderLatePostContrast">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Select the index corresponding to the Late post-contrast image</string>
-        </property>
-        <property name="decimals">
-         <number>0</number>
-        </property>
-        <property name="pageStep">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>latePostContrastIndex</string>
-        </property>
+        <layout class="QFormLayout" name="segmentEditorFormLayout">
+         <item row="0" column="1">
+          <widget class="qMRMLSegmentEditorWidget" name="segmentEditorWidget">
+           <property name="defaultTerminologyEntrySettingsKey">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
      </layout>
@@ -312,7 +314,10 @@
       <bool>false</bool>
      </property>
      <layout class="QFormLayout" name="parametersFormLayout">
-      <item row="1" column="0">
+      <item row="0" column="0" colspan="2">
+       <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget"/>
+      </item>
+      <item row="2" column="0">
        <widget class="QLabel" name="label_4">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -325,7 +330,7 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="ctkSliderWidget" name="enhacementThresholdValue">
         <property name="enabled">
          <bool>false</bool>
@@ -360,19 +365,6 @@
     </widget>
    </item>
    <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item>
     <widget class="QPushButton" name="applyButton">
      <property name="enabled">
       <bool>false</bool>
@@ -390,6 +382,19 @@
       <string>Apply</string>
      </property>
     </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
    </item>
   </layout>
  </widget>
@@ -586,70 +591,6 @@
     <hint type="destinationlabel">
      <x>237</x>
      <y>287</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>inputSelector</sender>
-   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
-   <receiver>segmentEditorWidget</receiver>
-   <slot>setSourceVolumeNode(vtkMRMLNode*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>303</x>
-     <y>45</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>237</x>
-     <y>287</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>inputMaskSelector</sender>
-   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
-   <receiver>segmentEditorWidget</receiver>
-   <slot>setSegmentationNode(vtkMRMLNode*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>303</x>
-     <y>72</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>237</x>
-     <y>287</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>segmentEditorWidget</sender>
-   <signal>segmentationNodeChanged(vtkMRMLSegmentationNode*)</signal>
-   <receiver>segmentSelectorWidget</receiver>
-   <slot>update()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>237</x>
-     <y>287</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>236</x>
-     <y>570</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>segmentEditorWidget</sender>
-   <signal>segmentationNodeChanged(vtkMRMLSegmentationNode*)</signal>
-   <receiver>inputMaskSelector</receiver>
-   <slot>update()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>237</x>
-     <y>287</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>303</x>
-     <y>72</y>
     </hint>
    </hints>
   </connection>
