@@ -304,6 +304,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.outputTICTableSelector.setToolTip(_("Select a Table"))
         self.outputTICTableSelector.setCurrentNode(None)
         # use insertRow to append the new element into a specific row (i.e. FormLayout.insertRow(position, Text, Table))
+        # self.ui.outputsFormLayout.addRow(_("Output tables:"), self.outputTICTableSelector)
+        # self.ui.parametersGridLayout.addItem(2, _("Output tables:"), self.outputTICTableSelector)
         self.ui.outputGridLayout.addWidget(self.outputTICTableSelector, 2, 1, 1)
         
         
@@ -449,7 +451,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             else:
                 # There are no output label map available, so create one by default:
                 self._parameterNode.outputLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "SER Label Map")
-                
+        # Create a default display node, so I can associate the colour table:
+        self._parameterNode.outputLabelMap.CreateDefaultDisplayNodes()
         # Select default output nodes if nothing is selected yet to save a few clicks for the user
         # if not self._parameterNode.outputVolume:
         #     firstOutputVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
@@ -469,6 +472,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # make the color table selectable in the GUI outside Colors module
         self.colourTableNode.HideFromEditorsOff()
         self.setupColourTable()
+        # # Associate the colour table with the label map --> Pay attention to the use cases, because there is an error at some point (not yet clear when though)
+        self._parameterNode.outputLabelMap.GetDisplayNode().SetAndObserveColorNodeID(self.colourTableNode.GetID())            
 
         # Add colour table to the scene:
         # slicer.mrmlScene.AddNode(self.colourTableNode)
@@ -536,7 +541,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # ui element that needs connection.
             self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-            print(f'Parameter Node preContrastIndex: {self._parameterNode.preContrastIndex}')            
             if self._parameterNode.input4DVolume:
                 self.configureView()
                 # print(f'Call within setParameterNode: Setup Index Selector and Widget status')
@@ -556,10 +560,10 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._checkCanApply()
 
     def _checkCanApply(self, caller=None, event=None) -> None:
-        # Before anything else, check layout selectors:
-        self.checkDefaultVieweLayout()
-        self.checkVolumeRenderingVieweLayout()
         if self._parameterNode and self._parameterNode.input4DVolume and self._parameterNode.inputMaskVolume and (self.segmentID is not None):
+            # Before anything else, check layout selectors:
+            self.checkDefaultVieweLayout()
+            self.checkVolumeRenderingVieweLayout()
             # JU - DEBUGMODE
             # print("Compute output volume")
             # if self._parameterNode.outputVolume is None:
@@ -597,8 +601,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Enable Table selection and update chart window:
             # self.plotSeriesNode.SetName(self.ui.segmentListSelector.currentText)
             self.update_plot_window()
-            # Associate the colour table with the label map:
-            self._parameterNode.outputLabelMap.GetDisplayNode().SetAndObserveColorNodeID(self.colourTableNode.GetID())            
             # Compute output
             self.logic.process(self._parameterNode.input4DVolume, 
                                self._parameterNode.inputMaskVolume, 
@@ -613,6 +615,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                int(self._parameterNode.latePostContrastIndex), #int(self.ui.indexSliderLatePostContrast.value), #)
                                self._parameterNode.peakEnhancementThreshold,
                                self.segmentID) # self.ui.segmentListSelector.currentIndex,
+
             # self.logic.updateViewer(volumeToDisplay=self._parameterNode.outputVolume)
             # Compute inverted output (if needed)
             # if self.ui.invertedOutputSelector.currentNode():
@@ -640,15 +643,15 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.layoutManager.setLayout(self.customLayoutId)
             
     def onSegmentChangeSegmentEditorNode(self):
-        print('Changed segment mask from segment editor node...')
+        # print('Changed segment mask from segment editor node...')
         self.ui.inputMaskSelector.setCurrentNode(self.ui.segmentEditorWidget.segmentationNode())
         
     def onNodeChangeInputMaskSelectorNode(self):
-        print('Changed input mask node...')
+        # print('Changed input mask node...')
         self.ui.segmentEditorWidget.setSegmentationNode(self.ui.inputMaskSelector.currentNode())
     
     def onSequenceChangeInputSelectorNode(self):
-        print('Changed the main input selector node...')
+        # print('Changed the main input selector node...')
         if self._parameterNode is not None:
             self.setCurrentVolumeFromIndex(self._parameterNode.preContrastIndex)
         self.ui.segmentEditorWidget.setSourceVolumeNode(self.currentVolume)
@@ -668,7 +671,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def updateSelectedSegmentMask(self):
         self.segmentID = self.ui.segmentSelectorWidget.currentSegmentID()
-        print(f'update Selected Segment: {self.segmentID}')
+        # print(f'update Selected Segment: {self.segmentID}')
         # # Set visibility for the selected segmentation label:
         # TODO: apparently, if there is only one segmentation, it issues an error
         if self._parameterNode:
@@ -681,7 +684,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # JU - User-defined functions
     def configureView(self):
         
-        print(f'Running configureView function')
+        # print(f'Running configureView function')
         self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
         # Everytime the module is reloaded, set the selected node to the early post-contrast index
         self.setCurrentVolumeFromIndex(self._parameterNode.earlyPostContrastIndex)
@@ -703,7 +706,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             new_roi_bounds = [0]*6
             self.roiNode.GetBounds(new_roi_bounds)
             # TODO: enable a checkbox to control BoxROI visibility
-        print(f'Ensure the display box is hidden...')
+        # print(f'Ensure the display box is hidden...')
         self.roiNode.SetDisplayVisibility(False)
 
     # JU - separate to refresh the index selctors everytime the module is loaded (not only when the input selector changes)
@@ -735,7 +738,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.logic.updateViewer(self.currentVolume)
     
     def configurePlotWindow(self):
-        print('Configuring Plot Series and Chart Window...')
+        # print('Configuring Plot Series and Chart Window...')
         # Configure Plot Series:
         self.plotSeriesNode.SetXColumnName(self.TICTableRowNames[0])
         self.plotSeriesNode.SetYColumnName(self.TICTableRowNames[1])
@@ -781,7 +784,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def setupColourTable(self):
         nLabels = len(self.ser_segment_labels)
-        print(f'Number of Labels: {nLabels}')
+        # print(f'Number of Labels: {nLabels}')
         self.colourTableNode.SetNumberOfColors(nLabels)
         self.colourTableNode.SetNamesInitialised(True) # prevent automatic color name generation
         for idx, (legend, [r,g,b,a]) in enumerate(self.ser_segment_labels.items()):
@@ -820,6 +823,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         self.UPPER_ENH_THRESHOLD = 5e2
         self.PIXEL_CONNECTIVITY = 8
         self.FG_OPACITY = 0.5
+        self.LB_OPACITY = 0.0
         self.SERColourMapDictionary = None
         
     def getParameterNode(self):
@@ -844,15 +848,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         if self.SERColourMapDictionary is None:
             self.setSERColourMapDict()
         
-        print(self.SERColourMapDictionary)
         return self.SERColourMapDictionary
-    
-        {'a.o.v':             [0, 0, 0, 0],  # [r,g,b,alpha]: black -> [0,0,0,0], alpha=0 -> Transparent
-                            'SER ≤ 0.9':         [0, 0, 1, 1],  # blue->[0,0,1,1]
-                            '0.9 ≤ SER ≤ 1.0':   [0, 1, 0, 1],  # green
-                            'SER ≥ 1.0':         [1, 0, 0, 1]  # red 
-                            }
-    
+        
     def setSERColourMapDict(self):
 
         """ In the FTV Extension, they split the intervals as follows:
@@ -870,7 +867,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                          [0.0, 1.0, 0.0, alfa], # green
                          [1.0, 0.0, 0.0, alfa], # red
                          [1.0, 1.0, 0.0, alfa], # yellow
-                         [0.0, 0.0, 0.0, alfa] # black
+                         [0.0, 0.0, 0.0, 0.0] # black & transparent so it can be overlaid with the MIP
                          ]
         self.SERLevelLB = serMapInterval[:-1]
         self.SERLevelUB = serMapInterval[1:]
@@ -892,25 +889,28 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.app.applicationLogic().GetSelectionNode().SetActiveTableID(currentTable.GetID())
         currentTable.SetUseColumnTitleAsColumnHeader(True)  # Make column titles visible (instead of column names)
         slicer.app.applicationLogic().PropagateTableSelection()
-    
-    # JU - This function might not be needed anymore. See comment in function update_plot_window
-    # TODO: Remove once confirmed
-    # def displayChart(self, currentPlotChart):
-    #     # slicer.modules.plots.logic().ShowChartInLayout(currentPlotChart) 
-        
-    def updateViewer(self, backgroundVolume=None, foregroundVolume=None):
+            
+    def updateViewer(self, backgroundVolume=None, foregroundVolume=None, labelVolume=None, labelOpacity=None):
         
         if foregroundVolume is not None:
             foregroundOpacity=self.FG_OPACITY
             # TODO: Set the name of the background and foreground nodes in display
-            for channels in ["Red", "Yello"]:
+            for channels in ["Red", "Yellow"]:
                 view = slicer.app.layoutManager().sliceWidget(channels).sliceView()
                 view.cornerAnnotation().SetText(vtk.vtkCornerAnnotation.UpperLeft,foregroundVolume.GetName())
         else:
             foregroundOpacity = None
+        
+        if labelVolume is not None:
+            labelOpacity = self.LB_OPACITY
+            colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
+            colorLegendDisplayNode.ScalarVisibilityOn()
+            colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
+                  
         slicer.util.setSliceViewerLayers(background=backgroundVolume, 
                                          foreground=foregroundVolume,
-                                         foregroundOpacity=foregroundOpacity)
+                                         foregroundOpacity=foregroundOpacity,
+                                         label=labelVolume, labelOpacity=labelOpacity)
         
     def showVolumeRenderingMIP(self, volumeNode, useSliceViewColors=True):
         """
@@ -983,7 +983,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 inputVolume: vtkMRMLSequenceNode, #vtkMRMLScalarVolumeNode,
                 maskVolume: vtkMRMLSegmentationNode, #vtkMRMLScalarVolumeNode,
                 outputMaps: vtkMRMLSequenceNode,
-                # outputVolume: vtkMRMLScalarVolumeNode,
                 outputLabelMap: vtkMRMLLabelMapVolumeNode,
                 referenceBoxROI: vtkMRMLMarkupsROINode, # Add roi Box as input argument!
                 tableNodeDict: dict={'TableName': [vtkMRMLTableNode, 'label_list']}, #vtkMRMLTableNode,
@@ -1017,10 +1016,19 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         logging.info("Processing started")
         
         # Get the segment selected by the list "Segment Label Mask":
-        print(f'Processing - SegmentNodeID: {segmentNodeID}')
+        # print(f'Processing - SegmentNodeID: {segmentNodeID}')
         maskSegmentation = maskVolume.GetSegmentation()
+        # Before doing anything, loop over the segmentations and delete the corresponding to the label maps that are created locally by this function:
+        for segment_iID in maskSegmentation.GetSegmentIDs():
+            segment_i = maskSegmentation.GetSegment(segment_iID)
+            if segment_i.GetName() in self.SERlegend:
+                maskSegmentation.RemoveSegment(segment_i)
+        
         segmentID = maskSegmentation.GetSegment(segmentNodeID) #GetNthSegmentID(segmentNodeIndex)
         segmentName = segmentID.GetName()
+        # Ensure visibility for the selected segment is ON (TRUE)
+        maskDisplayNode = maskVolume.GetDisplayNode()
+        maskDisplayNode.SetSegmentVisibility(segmentNodeID, True) 
 
         # To get Summary statistics use the SegmentStatistics module
         import SegmentStatistics
@@ -1033,12 +1041,12 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         end_proc_mask_time = time.perf_counter()
 
         # TODO: For now ignore the reference box, until I understand how to use in the cropping context
-
+        
         # JU - DEBUG Mode:
-        print(f'Segment name: {segmentName}')
-        print(f'Pre-Contrast Index: {preContrastIndex}')
-        print(f'Early Post-Contrast Index: {earlyPostContrastIndex}')
-        print(f'Late Post-Contrast Index: {latePostContrastIndex}')
+        # print(f'Segment name: {segmentName}')
+        # print(f'Pre-Contrast Index: {preContrastIndex}')
+        # print(f'Early Post-Contrast Index: {earlyPostContrastIndex}')
+        # print(f'Late Post-Contrast Index: {latePostContrastIndex}')
 
         label = slicer.util.arrayFromSegmentBinaryLabelmap(maskVolume, segmentNodeID)
         points  = np.where( label == 1 )  # or use another label number depending on what you segmented
@@ -1054,7 +1062,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             
         time_intensity_curve = np.full((nt, len(tableNodeDict['TICTable'][1])), np.nan)
         time_intensity_curve[:,0] = np.linspace(0, nt, nt, endpoint=False) # TODO: replace it by te actual sequence timings (e.g. trigger_times)
-        print(f'Volume Size (Nz x Ny x Nx): [{nz} x {ny} x {nx}]')
+        # print(f'Volume Size (Nz x Ny x Nx): [{nz} x {ny} x {nx}]')
         end_load_4dVol_time = time.perf_counter()
         
         # MIP Volume
@@ -1067,7 +1075,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # print(f'Volume Size: {S_t0.shape}')
         
         St_minus_St0 = 100 * ( (inputVolume4Darray - St0) / (St0 + self.EPSILON) )
-        print(f'Dynamic image size: {St_minus_St0.shape}')
+        # print(f'Dynamic image size: {St_minus_St0.shape}')
         St_minus_St0[St_minus_St0 >= self.UPPER_ENH_THRESHOLD] = self.UPPER_ENH_THRESHOLD # It trims upper values too high. Set them to 0, so they don't affect stats
         
         St1_minus_St0 = St_minus_St0[earlyPostContrastIndex, :, :, :]
@@ -1095,7 +1103,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.util.updateVolumeFromArray(outputVolume, PE)
         outputMaps.SetDataNodeAtValue(outputVolume, "PE")
         
-        # SER = ((S1-S0)/(Sn-S0+self.epsilon))*PEmask
         SER = np.zeros_like(St1_minus_St0)
         SER[points] = ( St1_minus_St0[points] / (Stn_minus_St0[points] + self.EPSILON ) ) 
         SER[PEnull] = 0.0
@@ -1109,25 +1116,15 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Count occurrences within the ROI:
         unique, counts = np.unique(SERmap[SERmap > 0], return_counts=True)
         pcFromCounts = 100 * counts/np.sum(label==1) # np.sum(counts)
-        # labelColumnContent = self.SERlegend
-        # statsColumnContent = pcFromCounts
-        # unitsColumnContent = ['%']*len(self.SERlegend)
-        
         
         slicer.util.updateVolumeFromArray(outputVolume, SERmap)
         volumes_logic = slicer.modules.volumes.logic()
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMap, outputVolume)
-
-        # Import the label map as another segmentation in the maskVolume (do not run it as now, otherwise it'll create multiple masks):
-        # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMap, maskVolume)
-        # TODO: set it up properly in the Widget Class to avoid creating multiple nodes in a session
-        # maskVolume.AddSegmentFromBinaryLabelmapRepresentation(outputVolume)
-
-        # slicer.mrmlScene.RemoveNode(label_node)
         
-        print(f'Upper Threshold: {self.UPPER_ENH_THRESHOLD}')
-        print(f'PE Threshold: {PEthreshold}')
-        print(f'Max PE: {np.max(PE)}')
+        # JU - DEBUG Mode:
+        # print(f'Upper Threshold: {self.UPPER_ENH_THRESHOLD}')
+        # print(f'PE Threshold: {PEthreshold}')
+        # print(f'Max PE: {np.max(PE)}')
         
         max_ENH = np.max(St_minus_St0, axis=0)
         delta_ENH = Stn_minus_St0[points] - St1_minus_St0[points]
@@ -1136,25 +1133,26 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         [m_slope, n_coeff], time_intensity_curve[1:,2] = self.simple_linear_fit(time_intensity_curve[1:,0], time_intensity_curve[1:,1])
         # # JU - DEBUG: should match the mean value of LabelStatistics calculation as a double-check
         # print(f'Mean Values: {time_intensity_curve}') 
-        labelColumnContent = ['Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', 'ROI volume']
-        statsColumnContent = [max_ENH[points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, volume_cm3]
-        unitsColumnContent = ['%', '%', '%', '[]', 'cm3']
         labelColumn = vtk.vtkStringArray()
         labelColumn.SetName(tableNodeDict['SummaryTable'][1][0])
         statsColumn = vtk.vtkDoubleArray()
         statsColumn.SetName(tableNodeDict['SummaryTable'][1][1])
         unitsColumn = vtk.vtkStringArray()
         unitsColumn.SetName(tableNodeDict['SummaryTable'][1][2])
-        for rows in zip(labelColumnContent, statsColumnContent, unitsColumnContent):
-            labelColumn.InsertNextValue(rows[0])
-            statsColumn.InsertNextValue(rows[1])
-            unitsColumn.InsertNextValue(rows[2])
-            
         # Add the percentage of label maps:
         for rows in zip(self.SERlegend, pcFromCounts, ['%']*len(self.SERlegend)):
             labelColumn.InsertNextValue(rows[0])
             statsColumn.InsertNextValue(rows[1])
             unitsColumn.InsertNextValue(rows[2])
+        # Add all other stats:
+        labelColumnContent = ['Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', 'ROI volume']
+        statsColumnContent = [max_ENH[points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, volume_cm3]
+        unitsColumnContent = ['%', '%', '%', '[]', 'cm3']
+        for rows in zip(labelColumnContent, statsColumnContent, unitsColumnContent):
+            labelColumn.InsertNextValue(rows[0])
+            statsColumn.InsertNextValue(rows[1])
+            unitsColumn.InsertNextValue(rows[2])
+            
             
 
         stopTime = time.perf_counter()
@@ -1167,13 +1165,14 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         tableNodeDict['SummaryTable'][0].AddColumn(labelColumn)
         tableNodeDict['SummaryTable'][0].AddColumn(statsColumn)
         tableNodeDict['SummaryTable'][0].AddColumn(unitsColumn)
-                
+
         # Update viewer with results:
         updatedSequenceBrowserNode = self.findBrowserForSequence(outputMaps)
         slicer.modules.sequences.toolBar().setActiveBrowserNode(updatedSequenceBrowserNode)
         # Set background image to be the MIP:
         updatedSequenceBrowserNode.SetSelectedItemNumber(0) # MIP is the first node we added
-        self.updateViewer(updatedSequenceBrowserNode.GetProxyNode(outputMaps))
+        self.updateViewer(backgroundVolume=updatedSequenceBrowserNode.GetProxyNode(outputMaps),
+                          labelVolume=outputLabelMap)
         self.showVolumeRenderingMIP(updatedSequenceBrowserNode.GetProxyNode(outputMaps))
         # Import label map into a segmentation:
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMap, maskVolume)
@@ -1183,6 +1182,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Finally, remove the temporary node (it should be wrapped into a try/except/finally statement to ensure it always get deleted)
         slicer.mrmlScene.RemoveNode(outputVolume)
         
+        
+
 # quantificationTest
 #
 
