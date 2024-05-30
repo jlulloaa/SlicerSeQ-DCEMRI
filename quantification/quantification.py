@@ -862,6 +862,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         """
         alfa = 1
         serMapInterval = [0.00, 0.90, 1.00, 1.30, 1.75, 3.00]
+        # serMapInterval = [0.00, 0.90, 1.00, 1.10]
         serMapColours = [[0.0, 0.0, 1.0, alfa], # blue
                          [0.5, 0.0, 0.5, alfa], # purple
                          [0.0, 1.0, 0.0, alfa], # green
@@ -869,6 +870,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                          [1.0, 1.0, 0.0, alfa], # yellow
                          [0.0, 0.0, 0.0, 0.0] # black & transparent so it can be overlaid with the MIP
                          ]
+        # serMapColours = np.array(serMapColours)[[0,2,3,-1]]
         self.SERLevelLB = serMapInterval[:-1]
         self.SERLevelUB = serMapInterval[1:]
         self.SERColourMapDictionary = {'non SER': serMapColours[-1]}
@@ -946,6 +948,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             viewNode.SetRaycastTechnique(slicer.vtkMRMLViewNode.MaximumIntensityProjection)
         # Show volume rendering
         displayNode.SetVisibility(True)
+
+    # TODO: define function to add bounding box to the 3D rendering, as shown here: https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#markups-roi
+    # def draw_bounding_box(self, segmentID, markupNode):
 
     # JU - Crop Volume from ROI Box:
     def cropVolumeFromROI(self, inputVolumeAsArray, referenceBoxROINode):
@@ -1034,12 +1039,20 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         import SegmentStatistics
         segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
         segStatLogic.getParameterNode().SetParameter("Segmentation", maskVolume.GetID())
+        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled",str(True))
+        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_diameter_mm.enabled",str(True))
+        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_x.enabled",str(True))
+        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_y.enabled",str(True))
+        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_z.enabled",str(True))
         segStatLogic.computeStatistics()
         stats = segStatLogic.getStatistics()
         # Get Segment volume:
         volume_cm3 = stats[segmentNodeID,"LabelmapSegmentStatisticsPlugin.volume_cm3"]            
         end_proc_mask_time = time.perf_counter()
-
+        # Get Segment Oriented Bounding Box Diameter 
+        obb_diameter_mm = np.array(stats[segmentNodeID,"LabelmapSegmentStatisticsPlugin.obb_diameter_mm"])
+        maxROIDiameter = np.max(obb_diameter_mm)
+        print(f'OBB diameter: {obb_diameter_mm}[mm]')
         # TODO: For now ignore the reference box, until I understand how to use in the cropping context
         
         # JU - DEBUG Mode:
@@ -1145,9 +1158,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             statsColumn.InsertNextValue(rows[1])
             unitsColumn.InsertNextValue(rows[2])
         # Add all other stats:
-        labelColumnContent = ['Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', 'ROI volume']
-        statsColumnContent = [max_ENH[points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, volume_cm3]
-        unitsColumnContent = ['%', '%', '%', '[]', 'cm3']
+        labelColumnContent = ['Maximum ROI Diameter', 'Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', 'ROI volume']
+        statsColumnContent = [maxROIDiameter, max_ENH[points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, volume_cm3]
+        unitsColumnContent = ['mm', '%', '%', '%', '[]', 'cm3']
         for rows in zip(labelColumnContent, statsColumnContent, unitsColumnContent):
             labelColumn.InsertNextValue(rows[0])
             statsColumn.InsertNextValue(rows[1])
