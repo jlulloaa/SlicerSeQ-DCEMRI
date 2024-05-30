@@ -858,7 +858,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         ]1.0, 1.3]: Green (0, 1, 0)
         ]1.3, 1.75]: Red (1, 0, 0)
         ]1.75, 3.0]: Yellow (1, 1, 0)
-        <0.0 & >3.0 (i.e. No SER): White (1, 1, 1)
+        >0.0 & <3.0 (i.e. No SER): White (1, 1, 1)
         """
         alfa = 1
         serMapInterval = [0.00, 0.90, 1.00, 1.30, 1.75, 3.00]
