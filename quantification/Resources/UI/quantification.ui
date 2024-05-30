@@ -6,11 +6,11 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>473</width>
+    <width>599</width>
     <height>916</height>
    </rect>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,0,0,0">
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,0">
    <property name="sizeConstraint">
     <enum>QLayout::SetNoConstraint</enum>
    </property>
@@ -25,30 +25,155 @@
      <property name="text">
       <string>Inputs</string>
      </property>
-     <layout class="QFormLayout" name="inputFormLayout">
-      <item row="0" column="0" colspan="2">
-       <widget class="QLabel" name="labelInput4Dvolume">
+     <layout class="QGridLayout" name="inputsGridLayout" rowstretch="0,0,0,0,0,0,0,0">
+      <item row="6" column="0" colspan="3">
+       <widget class="qMRMLNodeComboBox" name="inputMaskSelector">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="frameShape">
-         <enum>QFrame::Panel</enum>
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
         </property>
-        <property name="frameShadow">
-         <enum>QFrame::Raised</enum>
+        <property name="toolTip">
+         <string>Select a ROI Mask</string>
         </property>
-        <property name="text">
-         <string>Input Sequence (4D volume)</string>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLSegmentationNode</string>
+         </stringlist>
         </property>
-        <property name="alignment">
-         <set>Qt::AlignHCenter|Qt::AlignTop</set>
+        <property name="showChildNodeTypes">
+         <bool>false</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>inputMaskVolume</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="0" colspan="2">
+      <item row="1" column="0" colspan="3">
+       <widget class="qMRMLNodeComboBox" name="inputSelector">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::WheelFocus</enum>
+        </property>
+        <property name="toolTip">
+         <string>Select a 4D sequence from the list</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLSequenceNode</string>
+         </stringlist>
+        </property>
+        <property name="showChildNodeTypes">
+         <bool>true</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="rename" stdset="0">
+         <bool>true</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>input4DVolume</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0" colspan="3">
+       <widget class="ctkCollapsibleButton" name="segmentEditorCollapsibleButton">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Add/Edit Segmentation Mask</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QFormLayout" name="segmentEditorFormLayout">
+         <item row="1" column="0">
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="1" column="1">
+          <widget class="qMRMLSegmentEditorWidget" name="segmentEditorWidget">
+           <property name="defaultTerminologyEntrySettingsKey">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <spacer name="horizontalSpacer_2">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="0" column="1">
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="4" column="1">
        <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
         <property name="enabled">
          <bool>false</bool>
@@ -63,7 +188,7 @@
          <string>Identify relevant timepoints</string>
         </property>
         <layout class="QFormLayout" name="identifyTimepointsFormLayout">
-         <item row="0" column="0">
+         <item row="1" column="0">
           <widget class="QLabel" name="labelSelectPreContrast">
            <property name="toolTip">
             <string>Index of pre-contras image</string>
@@ -73,7 +198,7 @@
            </property>
           </widget>
          </item>
-         <item row="0" column="1">
+         <item row="1" column="1">
           <widget class="ctkSliderWidget" name="indexSliderPreContrast">
            <property name="enabled">
             <bool>false</bool>
@@ -107,7 +232,7 @@
            </property>
           </widget>
          </item>
-         <item row="1" column="0">
+         <item row="2" column="0">
           <widget class="QLabel" name="labelSelectEarlyPostContrast">
            <property name="toolTip">
             <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
@@ -117,7 +242,7 @@
            </property>
           </widget>
          </item>
-         <item row="1" column="1">
+         <item row="2" column="1">
           <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
            <property name="enabled">
             <bool>false</bool>
@@ -142,7 +267,7 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="0">
+         <item row="3" column="0">
           <widget class="QLabel" name="labelSelectLatePostContrast">
            <property name="toolTip">
             <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
@@ -152,7 +277,7 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
+         <item row="3" column="1">
           <widget class="ctkSliderWidget" name="indexSliderLatePostContrast">
            <property name="enabled">
             <bool>false</bool>
@@ -180,49 +305,20 @@
         </layout>
        </widget>
       </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="qMRMLNodeComboBox" name="inputSelector">
-        <property name="enabled">
-         <bool>false</bool>
+      <!-- <item row="4" column="1">
+       <spacer name="horizontalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
         </property>
-        <property name="focusPolicy">
-         <enum>Qt::WheelFocus</enum>
-        </property>
-        <property name="toolTip">
-         <string>Select a 4D sequence from the list</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLSequenceNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="rename" stdset="0">
-         <bool>true</bool>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>input4DVolume</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0" colspan="2">
+       </spacer>
+      </item> -->
+      <item row="5" column="0" colspan="3">
        <widget class="QLabel" name="labelInputMask">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
@@ -244,55 +340,47 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
-       <widget class="ctkCollapsibleButton" name="segmentEditorCollapsibleButton">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="text">
-         <string>Add/Edit Segmentation Mask</string>
-        </property>
-        <property name="collapsed">
-         <bool>true</bool>
-        </property>
-        <layout class="QFormLayout" name="segmentEditorFormLayout">
-         <item row="0" column="1">
-          <widget class="qMRMLSegmentEditorWidget" name="segmentEditorWidget">
-           <property name="defaultTerminologyEntrySettingsKey">
-            <string notr="true"/>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputMaskSelector">
+      <item row="4" column="0">
+       <widget class="QLabel" name="imagePlaceholder">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="toolTip">
-         <string>Select a ROI Mask</string>
+        <property name="frameShape">
+         <enum>QFrame::Box</enum>
         </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLSegmentationNode</string>
-         </stringlist>
+        <property name="text">
+         <string>(Placeholder for a descriptive Image/ Icon)</string>
         </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
         </property>
-        <property name="addEnabled">
-         <bool>false</bool>
+        <property name="wordWrap">
+         <bool>true</bool>
         </property>
-        <property name="removeEnabled">
-         <bool>false</bool>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="3">
+       <widget class="QLabel" name="labelInput4Dvolume">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>inputMaskVolume</string>
+        <property name="frameShape">
+         <enum>QFrame::Panel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Raised</enum>
+        </property>
+        <property name="text">
+         <string>Input Sequence (4D volume)</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignHCenter|Qt::AlignTop</set>
         </property>
        </widget>
       </item>
@@ -316,24 +404,21 @@
      <property name="collapsed">
       <bool>false</bool>
      </property>
-     <layout class="QFormLayout" name="parametersFormLayout">
-      <item row="0" column="0" colspan="2">
-       <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget"/>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+     <layout class="QGridLayout" name="parametersGridLayout">
+      <item row="0" column="1">
+       <spacer name="horizontalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
-        <property name="text">
-         <string>PE Threshold</string>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
         </property>
-       </widget>
+       </spacer>
       </item>
-      <item row="1" column="1">
+      <item row="0" column="3" rowspan="2">
        <widget class="ctkSliderWidget" name="peakEnhancementThreshold">
         <property name="enabled">
          <bool>true</bool>
@@ -367,21 +452,34 @@
         </property>
        </widget>
       </item>
+      <item row="0" column="0" rowspan="2">
+       <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget"/>
+      </item>
+      <item row="0" column="2" rowspan="2">
+       <widget class="QLabel" name="labelPEthresholdSlider">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Set PE Threshold:</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer_2">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
    </item>
    <item>
     <widget class="QPushButton" name="applyButton">
@@ -394,6 +492,13 @@
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
+     <property name="font">
+      <font>
+       <pointsize>18</pointsize>
+       <weight>75</weight>
+       <bold>true</bold>
+      </font>
+     </property>
      <property name="focusPolicy">
       <enum>Qt::StrongFocus</enum>
      </property>
@@ -401,25 +506,12 @@
       <string>Run the algorithm.</string>
      </property>
      <property name="text">
-      <string>Apply</string>
+      <string>Click to Process</string>
      </property>
     </widget>
    </item>
    <item>
     <widget class="qMRMLLayoutWidget" name="MRMLLayoutWidget"/>
-   </item>
-   <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
    </item>
    <item>
     <widget class="ctkCollapsibleButton" name="outputsCollapsibleButton">
@@ -438,72 +530,28 @@
      <property name="collapsed">
       <bool>false</bool>
      </property>
-     <layout class="QFormLayout" name="outputsFormLayout">
-      <item row="2" column="0">
-       <widget class="QLabel" name="labelOutputVolumes">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Plain</enum>
-        </property>
+     <layout class="QGridLayout" name="outputGridLayout">
+      <item row="0" column="3">
+       <widget class="QCheckBox" name="defaultViewToggle">
         <property name="text">
-         <string>Outputs</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputVolumesSelector">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Select Output Volume</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLSequenceNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="baseName">
-         <string>Output Volumes</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
+         <string>Default Layout View</string>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>outputSequenceMaps</string>
+         <string>defaultLayoutViewToggle</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="1">
+      <item row="1" column="3">
+       <widget class="QCheckBox" name="volumeRenderingViewToggle">
+        <property name="text">
+         <string>3D Rendering View</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>renderingLayoutViewToggle</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
        <widget class="qMRMLNodeComboBox" name="outputLabelMapSelector">
         <property name="enabled">
          <bool>true</bool>
@@ -545,7 +593,49 @@
         </property>
        </widget>
       </item>
-      <item row="8" column="0">
+      <item row="0" column="1">
+       <widget class="qMRMLNodeComboBox" name="outputVolumesSelector">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select Output Volume</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist>
+          <string>vtkMRMLSequenceNode</string>
+         </stringlist>
+        </property>
+        <property name="showChildNodeTypes">
+         <bool>false</bool>
+        </property>
+        <property name="baseName">
+         <string>Output Volumes</string>
+        </property>
+        <property name="noneEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>outputSequenceMaps</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
        <widget class="QLabel" name="labelOutputMaps">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
@@ -563,34 +653,14 @@
          <string>Output Label Map</string>
         </property>
         <property name="alignment">
-         <set>Qt::AlignCenter</set>
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
        </widget>
       </item>
-      <item row="13" column="1">
-       <widget class="QCheckBox" name="volumeRenderingViewToggle">
-        <property name="text">
-         <string>3D Rendering View</string>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>renderingLayoutViewToggle</string>
-        </property>
-       </widget>
-      </item>
-      <item row="12" column="1">
-       <widget class="QCheckBox" name="defaultViewToggle">
-        <property name="text">
-         <string>Default Layout View</string>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>defaultLayoutViewToggle</string>
-        </property>
-       </widget>
-      </item>
-      <item row="12" column="0">
+      <item row="0" column="2" rowspan="2">
        <widget class="QLabel" name="labelLayoutView">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -605,16 +675,60 @@
          <number>1</number>
         </property>
         <property name="text">
-         <string>Layout:</string>
+         <string>Layout control:</string>
         </property>
         <property name="alignment">
-         <set>Qt::AlignCenter</set>
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
         </property>
         <property name="indent">
          <number>0</number>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="labelOutputVolumes">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <property name="text">
+         <string>Outputs</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelTableSelector">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <property name="text">
+         <string>Table Selector</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
        </widget>
       </item>
@@ -869,22 +983,6 @@
     <hint type="destinationlabel">
      <x>292</x>
      <y>869</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>quantification</sender>
-   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>view3DRenderingToggle</receiver>
-   <slot>toggle()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>236</x>
-     <y>457</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>292</x>
-     <y>894</y>
     </hint>
    </hints>
   </connection>

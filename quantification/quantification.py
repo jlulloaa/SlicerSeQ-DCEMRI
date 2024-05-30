@@ -304,7 +304,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.outputTICTableSelector.setToolTip(_("Select a Table"))
         self.outputTICTableSelector.setCurrentNode(None)
         # use insertRow to append the new element into a specific row (i.e. FormLayout.insertRow(position, Text, Table))
-        self.ui.outputsFormLayout.addRow(_("Output tables:"), self.outputTICTableSelector)
+        self.ui.outputGridLayout.addWidget(self.outputTICTableSelector, 2, 1, 1)
         
         
         # JU - Initialise plot series and chart nodes:
