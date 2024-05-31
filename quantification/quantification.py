@@ -38,7 +38,7 @@ class quantification(ScriptedLoadableModule):
         # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Quantification")]
         self.parent.dependencies = ["SequenceRegistration"]  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["Jose L. Ulloa (ISANDEX LTD.), Nasib Washal (Queen's Hospital)"] 
+        self.parent.contributors = ["Jose L. Ulloa (ISANDEX LTD.), Muhammad Qadir (Austin Health)"] 
         # TODO: update with short description of the module and a link to online module documentation
         # _() function marks text as translatable to other languages
         self.parent.helpText = _("""
@@ -47,7 +47,7 @@ For up-to-date user guide, go to <a href="https://gthub.com/jlulloaa/..."> offic
 """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""
-This file was originally developed by Jose L. Ulloa, Nasib Washal. 
+This file was originally developed by Jose L. Ulloa, Muhammad Qadir.
 It is derived from the extension <a href="https://github.com/rnadkarni2/SlicerBreast_DCEMRI_FTV"> Slicer DCEMRI FTV </a>. 
 This work was (partially) funded by… (grant Name and Number).
 """)
@@ -863,23 +863,28 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         alfa = 1
         serMapInterval = [0.00, 0.90, 1.00, 1.30, 1.75, 3.00]
         # serMapInterval = [0.00, 0.90, 1.00, 1.10]
-        serMapColours = [[0.0, 0.0, 1.0, alfa], # blue
+        serMapColours = [[0.0, 0.0, 0.0, 0.0], # black & transparent so it can be overlaid with the MIP
+                         [0.0, 0.0, 1.0, alfa], # blue
                          [0.5, 0.0, 0.5, alfa], # purple
                          [0.0, 1.0, 0.0, alfa], # green
                          [1.0, 0.0, 0.0, alfa], # red
                          [1.0, 1.0, 0.0, alfa], # yellow
-                         [0.0, 0.0, 0.0, 0.0] # black & transparent so it can be overlaid with the MIP
+                         [1.0, 1.0, 1.0, alfa] # white (>MaxSER)
                          ]
         # serMapColours = np.array(serMapColours)[[0,2,3,-1]]
         self.SERLevelLB = serMapInterval[:-1]
         self.SERLevelUB = serMapInterval[1:]
-        self.SERColourMapDictionary = {'non SER': serMapColours[-1]}
+        self.SERColourMapDictionary = {'non SER': serMapColours[0]}
         self.SERlegend = []
         for idx, (lb, ub) in enumerate(zip(self.SERLevelLB, self.SERLevelUB)):
             legend = f'{lb} < SER ≤ {ub}'
-            self.SERColourMapDictionary[legend] = serMapColours[idx]
+            self.SERColourMapDictionary[legend] = serMapColours[idx+1]
             self.SERlegend.append(legend)
-
+        # Add upper limit legent (>MaxSER)
+        legend = f'{serMapInterval[-1]} < SER '
+        self.SERColourMapDictionary[legend] = serMapColours[-1]
+        self.SERlegend.append(legend)
+        
     def getSegmentList(self, maskVolumeNode):
 
         nsegments = maskVolumeNode.GetSegmentation().GetNumberOfSegments()
@@ -1124,11 +1129,18 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         SERmap = np.zeros_like(SER)
         for idx, (lb, ub) in enumerate(zip(self.SERLevelLB, self.SERLevelUB)):
-            SERmap[(SER > lb) & (SER <= ub)] = idx
-        
+            print(f'{lb} < SER ≤ {ub}: {idx+1}')
+            SERmap[(SER > lb) & (SER <= ub)] = idx+1
+        # Add the last element of the interval that makes MaxSER < SER:
+        idx = len(self.SERLevelUB)
+        print(f'{self.SERLevelUB[-1]} < SER: {idx + 1}')
+        SERmap[SER > self.SERLevelUB[-1]] = idx + 1
+        print(f'SER: {SER[SER>self.SERLevelUB[-1]]}')
         # Count occurrences within the ROI:
         unique, counts = np.unique(SERmap[SERmap > 0], return_counts=True)
-        pcFromCounts = 100 * counts/np.sum(label==1) # np.sum(counts)
+        print(f'Labels: {unique}')
+        # pcFromCounts = 100 * counts/np.sum(label==1) # np.sum(counts)
+        pcFromCounts = 100 * counts/np.sum(counts)
         
         slicer.util.updateVolumeFromArray(outputVolume, SERmap)
         volumes_logic = slicer.modules.volumes.logic()
