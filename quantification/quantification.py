@@ -21,7 +21,8 @@ from slicer import qMRMLSegmentEditorWidget, qMRMLSegmentSelectorWidget
 # from slicer import vtkMRMLPlotSeriesNode, vtkMRMLPlotChartNode
 
 import numpy as np
-
+from scipy import signal
+import cv2
 #
 # quantification
 #
@@ -138,10 +139,17 @@ class quantificationParameterNode:
     earlyPostContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices
     latePostContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices\
     
+    minuendIndex: Annotated[int, WithinRange(0, 10)] = 0
+    subtrahendIndex: Annotated[int, WithinRange(0, 10)] = 1
+    
     # # JU - Simple Checkboxes to control layout view:
     defaultLayoutViewToggle:  bool = True
     renderingLayoutViewToggle:  bool = False
-
+    markupROIVisibilityToggle:  bool = True
+    segmentMaskVisibilityToggle:  bool = True
+    # registerSequenceButton: bool = False
+    # displayVolumeSubtractionButton: bool = False
+    
     # # JU - Setting up table and plot nodes (TODO: they are not yet supported by ParameterNodeWrapper)
     # tableTICNode : vtkMRMLTableNode
     # plotTICNode: vtkMRMLPlotSeriesNode
@@ -150,6 +158,7 @@ class quantificationParameterNode:
 
     # # JU - parameters (created automatically by the extension wizard)
     peakEnhancementThreshold: Annotated[float, WithinRange(0.0, 100.0)] = 80.0
+    backgroundThreshold: Annotated[float, WithinRange(0.0, 100.0)] = 60.0
     # invertThreshold: bool = False
     # thresholdedVolume: vtkMRMLScalarVolumeNode
     # invertedVolume: vtkMRMLScalarVolumeNode
@@ -254,9 +263,10 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # JU - To ensure the columns name are consisten between TICTable and TICplot, I define them here:
         self.TICTableRowNames = ["Timepoint", "PE (%)", "Curve Fit"]
         self.SummaryTableRowNames = ["Parameter", "Value", "Units"]
+        self.SERTableRowNames = ["SER Range", "Volume (cm3)", "Distribution (%)"]
         # JU - Auxiliar nodes
         self.currentVolume = None
-        # self.outputVolume = None
+        self.roiNode = None
         self.segmentID = None
         self.colourTableNode = None
 
@@ -306,7 +316,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # use insertRow to append the new element into a specific row (i.e. FormLayout.insertRow(position, Text, Table))
         # self.ui.outputsFormLayout.addRow(_("Output tables:"), self.outputTICTableSelector)
         # self.ui.parametersGridLayout.addItem(2, _("Output tables:"), self.outputTICTableSelector)
-        self.ui.outputGridLayout.addWidget(self.outputTICTableSelector, 2, 1, 1)
+        self.ui.outputGridLayout.addWidget(self.outputTICTableSelector, 5, 1, 1)
         
         
         # JU - Initialise plot series and chart nodes:
@@ -349,7 +359,9 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Buttons
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
-
+        self.ui.sequenceRegistrationButton.connect("clicked(bool)", self.goToSequenceRegistration)
+        self.ui.displaySubtractionButton.connect("clicked(bool)", self.displaySubtractionVolumes)
+        
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
@@ -442,7 +454,14 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #         # self.segmentationListSelector.enabled = True
         # JU - Attach a segmentation mask to the segment editor. I think this will remove the warning message when adding the source volume before the mask
         self.ui.segmentEditorWidget.setSegmentationNode(self._parameterNode.inputMaskVolume)
-        
+        # Now that the segmentation mask has been created, add a default segmentation to initialise it:
+        if self._parameterNode.inputMaskVolume:
+            # Get the number of segmentations attached to the segmentation node:
+            segmentations = self._parameterNode.inputMaskVolume.GetSegmentation()
+            if segmentations.GetNumberOfSegments() < 1:
+                # Create a new segmentation and attach it to the inputMaskVolume node:
+                segmentations.AddEmptySegment()
+            
         # # Define a default output Label Map:
         if not self._parameterNode.outputLabelMap:
             firstOutputLabelMap = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLLabelMapVolumeNode")
@@ -483,12 +502,15 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self.outputTICTableSelector.currentNode():
             self.TICTableNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLTableNode")
             self.SummaryTableNode = slicer.mrmlScene.GetNthNodeByClass(1, "vtkMRMLTableNode")
+            self.SERDistributionTableNode = slicer.mrmlScene.GetNthNodeByClass(2, "vtkMRMLTableNode")
             if not self.TICTableNode:
                 self.TICTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", "TIC Table")
             # TODO: Check how to assign multiple tables to selector
             if not self.SummaryTableNode:
                 self.SummaryTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", "Summary Table")
-            self.outputTICTableSelector.setCurrentNode(self.SummaryTableNode)
+            if not self.SERDistributionTableNode:
+                self.SERDistributionTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", "SER Table")
+            self.outputTICTableSelector.setCurrentNode(self.SERDistributionTableNode)
 
         # if not self.plotSeriesNode:
         numberOfPlotSeriesNode = slicer.mrmlScene.GetNodesByClass("vtkMRMLPlotSeriesNode").GetNumberOfItems()
@@ -560,10 +582,18 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._checkCanApply()
 
     def _checkCanApply(self, caller=None, event=None) -> None:
-        if self._parameterNode and self._parameterNode.input4DVolume and self._parameterNode.inputMaskVolume and (self.segmentID is not None):
+        if self._parameterNode:
+            if self._parameterNode.input4DVolume:
+                print(f'Updating...')
+                self.ui.relevantIndicesCollapsibleButton.enabled = True
+                self.ui.displaySubtractionCollapsibleButton.enabled = True
+                
+        if self._parameterNode and self._parameterNode.input4DVolume and self._parameterNode.inputMaskVolume: # and (self.segmentID is not None):
             # Before anything else, check layout selectors:
             self.checkDefaultVieweLayout()
             self.checkVolumeRenderingVieweLayout()
+            self.toggleROIsView()
+            # self.displaySubtractionVolumes(self._parameterNode.minuendIndex, self._parameterNode.subtrahendIndex)
             # JU - DEBUGMODE
             # print("Compute output volume")
             # if self._parameterNode.outputVolume is None:
@@ -609,11 +639,13 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self._parameterNode.outputLabelMap,
                                self.roiNode,
                                {'TICTable': [self.TICTableNode, self.TICTableRowNames],
-                                'SummaryTable': [self.SummaryTableNode, self.SummaryTableRowNames]}, #outputTICTableSelector.currentNode(),
+                                'SummaryTable': [self.SummaryTableNode, self.SummaryTableRowNames],
+                                'SERSummaryTable': [self.SERDistributionTableNode, self.SERTableRowNames]}, #outputTICTableSelector.currentNode(),
                                int(self._parameterNode.preContrastIndex), #int(self.ui.indexSliderPreContrast.value), 
                                int(self._parameterNode.earlyPostContrastIndex), # int(self.ui.indexSliderEarlyPostContrast.value), 
                                int(self._parameterNode.latePostContrastIndex), #int(self.ui.indexSliderLatePostContrast.value), #)
                                self._parameterNode.peakEnhancementThreshold,
+                               self._parameterNode.backgroundThreshold,
                                self.segmentID) # self.ui.segmentListSelector.currentIndex,
 
             # self.logic.updateViewer(volumeToDisplay=self._parameterNode.outputVolume)
@@ -625,7 +657,14 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # slicer.modules.plots.logic().ShowChartInLayout(self.plotChartNode)        
 
     # JU - user-defined connnector functions
-    
+    def goToSequenceRegistration(self):
+        # Warn that it will move away from the module
+        warnText = "This will take you to another module.\nTo come back, go to Modules -> Quantification -> Parameteric DCE-MRI"
+        # slicer.util.warningDisplay(warnText, windowTitle="WARNING")
+        ok = slicer.util.confirmOkCancelDisplay(warnText, windowTitle="WARNING")
+        if ok:
+            slicer.util.selectModule("SequenceRegistration")
+
     def checkDefaultVieweLayout(self):
         if self._parameterNode.defaultLayoutViewToggle:
             # Force the 3D renderingViewToggle to false:
@@ -642,6 +681,14 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.defaultViewToggle.setChecked(True)
             self.layoutManager.setLayout(self.customLayoutId)
             
+    def toggleROIsView(self):
+        if self.roiNode:
+            self.roiNode.SetDisplayVisibility(self._parameterNode.markupROIVisibilityToggle)
+
+        if self.segmentID:
+            maskDisplayNode = self._parameterNode.inputMaskVolume.GetDisplayNode()
+            maskDisplayNode.SetSegmentVisibility(self.segmentID, self._parameterNode.segmentMaskVisibilityToggle) 
+        
     def onSegmentChangeSegmentEditorNode(self):
         # print('Changed segment mask from segment editor node...')
         self.ui.inputMaskSelector.setCurrentNode(self.ui.segmentEditorWidget.segmentationNode())
@@ -651,9 +698,10 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.segmentEditorWidget.setSegmentationNode(self.ui.inputMaskSelector.currentNode())
     
     def onSequenceChangeInputSelectorNode(self):
-        # print('Changed the main input selector node...')
+        print('Changed the main input selector node...')
         if self._parameterNode is not None:
-            self.setCurrentVolumeFromIndex(self._parameterNode.preContrastIndex)
+            if self._parameterNode.input4DVolume is not None:
+                self.setCurrentVolumeFromIndex(self._parameterNode.preContrastIndex)
         self.ui.segmentEditorWidget.setSourceVolumeNode(self.currentVolume)
         
     def onInputSelect(self):
@@ -697,18 +745,23 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def setupBoxROI(self):
         self.roiNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLMarkupsROINode")
-        if self.roiNode is None:
-            # setup the ROI
-            self.roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "RefBox")
-            # JU - Setup a Box ROI to crop the volume of interest. When running this function, the input volume must have been defined:
-            # Centre the ROI to the volume on display:
-            self.roiNode.SetRadiusXYZ(self.currentVolume.GetOrigin())
-            new_roi_bounds = [0]*6
-            self.roiNode.GetBounds(new_roi_bounds)
-            # TODO: enable a checkbox to control BoxROI visibility
-        # print(f'Ensure the display box is hidden...')
-        self.roiNode.SetDisplayVisibility(False)
-
+        if self._parameterNode is not None:
+            if (self.roiNode is None) & (self.currentVolume is not None):
+                # setup the ROI
+                self.roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "RefBox")
+                # JU - Setup a Box ROI to crop the volume of interest. When running this function, the input volume must have been defined:
+                # Fit the ROI to the volume on display:
+                self.logic.fitBoxROImarkupToVolume(self.currentVolume, self.roiNode)
+                # Set the initial dimensions to a fraction of the volume size
+                self.roiNode.SetRadiusXYZ(self.currentVolume.GetOrigin())
+                new_roi_bounds = [0]*6
+                self.roiNode.GetBounds(new_roi_bounds)
+                print(f'bBox Coordinates: {self.roiNode.GetBounds(new_roi_bounds)}')
+                
+                # TODO: enable a checkbox to control BoxROI visibility
+                self.toggleROIsView()
+                # self.roiNode.SetDisplayVisibility(self._parameterNode.markupROIVisibilityToggle)
+                
     # JU - separate to refresh the index selctors everytime the module is loaded (not only when the input selector changes)
     def setMaxIndexSelector(self, maxIndex):
         for sequenceItemSelectorWidget in [self.ui.indexSliderPreContrast, self.ui.indexSliderEarlyPostContrast, self.ui.indexSliderLatePostContrast]:
@@ -720,13 +773,20 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 sequenceItemSelectorWidget.enabled = True
 
         self._parameterNode.preContrastIndex = 0
-        self._parameterNode.earlyPostContrastIndex =  1
+        self._parameterNode.earlyPostContrastIndex =  3# 1
         self._parameterNode.latePostContrastIndex = sequenceItemSelectorWidget.maximum
+        
+        for indexSubtractSelectorWidget in [self.ui.minuendIndexSelector, self.ui.subtrahendIndexSelector]:
+            indexSubtractSelectorWidget.enabled = sequenceItemSelectorWidget.enabled
+            indexSubtractSelectorWidget.maximum = sequenceItemSelectorWidget.maximum
+        self._parameterNode.minuendIndex = 0
+        self._parameterNode.subtrahendIndex = 1
+        
         
     def setCurrentVolumeFromIndex(self, indexAsDouble=None):
         sequenceBrowserNode = self.logic.findBrowserForSequence(self._parameterNode.input4DVolume)
         # # JU - DEBUGMODE
-        # print(f'Selected Sequence from browser is {sequenceBrowserNode.GetName()}')
+        print(f'Selected Sequence from browser is {sequenceBrowserNode.GetName()}')
         if indexAsDouble is not None:
             sequenceBrowserNode.SetSelectedItemNumber(int(indexAsDouble))
         # self.currentVolume = sequenceBrowserNode.GetProxyNode(self._parameterNode.input4DVolume) #self.ui.inputSelector.currentNode())
@@ -737,6 +797,18 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # # (https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#show-a-volume-in-slice-views)
         self.logic.updateViewer(self.currentVolume)
     
+    def displaySubtractionVolumes(self, minuendIndex=None, sustraendIndex=None): # requires at least four inputs: sequence Volume, minuend Volume index, sustraend Volume index and display Node:
+        
+        if minuendIndex is None:
+            minuendIndex = self._parameterNode.minuendIndex
+
+        if sustraendIndex is None:
+            sustraendIndex = self._parameterNode.subtrahendIndex
+
+        self.logic.subtractVolumes(self._parameterNode.input4DVolume, minuendIndex, sustraendIndex, self.currentVolume)
+        # self.logic.updateViewer(self.currentVolume)
+
+        
     def configurePlotWindow(self):
         # print('Configuring Plot Series and Chart Window...')
         # Configure Plot Series:
@@ -773,8 +845,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # enable TIC table:
         self.outputTICTableSelector.enabled=True
         self.ui.outputsCollapsibleButton.enabled=True
-        # display table:
-        self.logic.displayTable(self.SummaryTableNode) #outputTICTableSelector.currentNode())
+        # table to display by default: 
+        self.logic.displayTable(self.SERDistributionTableNode)
         # It appears that by defining the layout, it is no longer needed to update the chart view
         # TODO: Remove the following line once confirmed 
         # self.logic.displayChart(self.plotChartNode)
@@ -818,10 +890,10 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
         
         # Constants:
-        self.EPSILON = 1e-3
-        self.INF_THRESHOLD = 1e2
-        self.UPPER_ENH_THRESHOLD = 5e2
-        self.PIXEL_CONNECTIVITY = 8
+        self.EPSILON = 1.0e-6
+        self.INF_THRESHOLD = 1.0e6
+        self.UPPER_ENH_THRESHOLD = 5.0e6
+        self.PIXEL_CONNECTIVITY = 4
         self.FG_OPACITY = 0.5
         self.LB_OPACITY = 0.0
         self.SERColourMapDictionary = None
@@ -854,14 +926,14 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         """ In the FTV Extension, they split the intervals as follows:
         ]0, 0.9]: Blue (0, 0, 1)
-        ]0.9, 1.0]: Purple (0.5, 0, 0.5)
-        ]1.0, 1.3]: Green (0, 1, 0)
+        ]0.9, 1.1]: Purple (0.5, 0, 0.5)
+        ]1.1, 1.3]: Green (0, 1, 0)
         ]1.3, 1.75]: Red (1, 0, 0)
         ]1.75, 3.0]: Yellow (1, 1, 0)
         >0.0 & <3.0 (i.e. No SER): White (1, 1, 1)
         """
         alfa = 1
-        serMapInterval = [0.00, 0.90, 1.00, 1.30, 1.75, 3.00]
+        serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75, 3.00]
         # serMapInterval = [0.00, 0.90, 1.00, 1.10]
         serMapColours = [[0.0, 0.0, 0.0, 0.0], # black & transparent so it can be overlaid with the MIP
                          [0.0, 0.0, 1.0, alfa], # blue
@@ -958,48 +1030,208 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
     # def draw_bounding_box(self, segmentID, markupNode):
 
     # JU - Crop Volume from ROI Box:
-    def cropVolumeFromROI(self, inputVolumeAsArray, referenceBoxROINode):
+    def cropVolumeFromROI(self, inputVolumeArray, referenceBoxROINode, referenceScalarVolumeNode):
+        
+        slicer.util.updateVolumeFromArray(referenceScalarVolumeNode, inputVolumeArray)
 
-        # Crop the volumes before doing any calculation:
-        auxiliarScalarNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "temporaryVolume")
-        slicer.util.updateVolumeFromArray(auxiliarScalarNode, inputVolumeAsArray)
         cropVolumeLogic = slicer.modules.cropvolume.logic()
         cropVolumeParameterNode = slicer.vtkMRMLCropVolumeParametersNode()
         cropVolumeParameterNode.SetROINodeID(referenceBoxROINode.GetID())
-        cropVolumeParameterNode.SetInputVolumeNodeID(auxiliarScalarNode.GetID())
+        cropVolumeParameterNode.SetInputVolumeNodeID(referenceScalarVolumeNode.GetID())
         cropVolumeParameterNode.SetVoxelBased(True)
+        # cropVolumeLogic.SnapROIToVoxelGrid(cropVolumeParameterNode)  # rotates the ROI to match the volume axis directions
         cropVolumeLogic.Apply(cropVolumeParameterNode)
         croppedVolumeNode = slicer.mrmlScene.GetNodeByID(cropVolumeParameterNode.GetOutputVolumeNodeID())
         croppedVolume = slicer.util.arrayFromVolume(croppedVolumeNode)
-        slicer.mrmlScene.RemoveNode(auxiliarScalarNode)
+        
         slicer.mrmlScene.RemoveNode(croppedVolumeNode)
         
-        # return croppedVolume
-        return inputVolumeAsArray
+        return croppedVolume
     
+    def cropSequenceVolumeFromROI(self, inputSequenceArray, referenceBoxROINode, referenceScalarVolumeNode):
+        
+        # cropVolumeLogic = slicer.modules.cropvolume.logic()
+        # cropVolumeParameterNode = slicer.vtkMRMLCropVolumeParametersNode()
+        # cropVolumeParameterNode.SetROINodeID(referenceBoxROINode.GetID())
+        # cropVolumeParameterNode.SetVoxelBased(True)
+    
+        nt = inputSequenceArray.shape[0]
+        croppedSequenceVolume = []
+        for idt in range(nt):
+            # tmpNode = inputVolumeSequence.GetNthDataNode(idt)
+            # cropVolumeParameterNode.SetInputVolumeNodeID(inputVolumeSequence.GetNthDataNode(idt).GetID())
+            # cropVolumeLogic.Apply(cropVolumeParameterNode)
+            # croppedVolumeNode = slicer.mrmlScene.GetNodeByID(cropVolumeParameterNode.GetOutputVolumeNodeID())
+            # croppedSequenceVolume.append(slicer.util.arrayFromVolume(croppedVolumeNode))
+            croppedSequenceVolume.append(self.cropVolumeFromROI(inputSequenceArray[idt,:,:,:],referenceBoxROINode,referenceScalarVolumeNode))
+            # print(f'Centre of the cropped volume: {croppedVolumeNode.GetOrigin()}')
+        outputVolumeArray = np.stack(croppedSequenceVolume, axis=0)
+        print(f'Cropped size: {outputVolumeArray.shape}')
+        # slicer.mrmlScene.RemoveNode(croppedVolumeNode)
+        
+        return outputVolumeArray
+        
     # JU - Fitting functions (TODO: Explore whether can take some of the implementation in PkModelling and/or Breast_DCEMRI_FTV)
     def simple_linear_fit(self, time_axis, sample_points, norder = 1):
         # simple lin fit: y(t) = m*t + n ==> lin_params = [m_slope, n_coeff]
         lin_params = np.polyfit(time_axis, sample_points, norder)
         yeval = np.polyval(lin_params, time_axis)
         return lin_params, yeval
-           
+
+    def getVolumeDataFromSequence(self, sequenceNode):
+
+        # Fill in the 4D array from the sequence node
+        # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#access-voxels-of-a-4d-volume-as-numpy-array
+        nt = sequenceNode.GetNumberOfDataNodes()
+        # Size of the numpy array is ordered as [nz, ny(row), nx(col)] TODO: verify row and col are correctly assigned!!
+        volume0 = slicer.util.arrayFromVolume(sequenceNode.GetNthDataNode(0))
+        [nz, ny, nx] = volume0.shape
+        inputVolumeArray = np.zeros([nt, nz, ny, nx]) # JU to follow ITK convention for 4D volumes
+
+        inputVolumeArray[0,:,:,:] = volume0
+
+        for volumeIndex in range(1, nt):
+            inputVolumeArray[volumeIndex, :, :, :] = slicer.util.arrayFromVolume(sequenceNode.GetNthDataNode(volumeIndex))
+        
+        return inputVolumeArray
+
+        
+    def subtractVolumes(self, inputSequenceNode, minuendIndex, subtrahendIndex, outputVolumeNode=None):
+        
+        # Get volume from sequence
+        minuendVolume = slicer.util.arrayFromVolume(inputSequenceNode.GetNthDataNode(minuendIndex))
+        subtrahendVolume = slicer.util.arrayFromVolume(inputSequenceNode.GetNthDataNode(subtrahendIndex))
+        subtractedVolume = minuendVolume - subtrahendVolume
+        if outputVolumeNode is not None:
+            slicer.util.updateVolumeFromArray(outputVolumeNode, subtractedVolume)
+            return outputVolumeNode
+        else:
+            return subtractedVolume
+    
+    def getStatsFromMask(self, volumeMaskNode, segmentID):
+        
+        # To get Summary statistics use the SegmentStatistics module
+        # It returns a dictionary with the statistics corresponding to the segmentID provided
+        import SegmentStatistics
+        segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
+        segStatLogic.getParameterNode().SetParameter("Segmentation", volumeMaskNode.GetID())
+        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled",str(True))
+        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_diameter_mm.enabled",str(True))
+        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_x.enabled",str(True))
+        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_y.enabled",str(True))
+        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_z.enabled",str(True))
+        segStatLogic.computeStatistics()
+        stats = segStatLogic.getStatistics()
+        outputStats = {}
+        for statPlugInName, measurementDetails in stats['MeasurementInfo'].items():
+            outputStats[statPlugInName.replace('LabelmapSegmentStatisticsPlugin.','')] = measurementDetails
+            outputStats[statPlugInName.replace('LabelmapSegmentStatisticsPlugin.','')]['value'] = stats[segmentID, statPlugInName]
+        return outputStats
+
+    # Get ROI coordinates:
+    def getBoxROIIJKCoordinates(self, markupROINode, referenceVolumeNode, transformedVolume=False):
+        
+        markupROI_RAS = self.getRASmarkupROICoordinates(markupROINode)
+
+        # If volume node is transformed, apply that transform to get volume's RAS coordinates
+        if transformedVolume:
+            transformRasToVolumeRas = vtk.vtkGeneralTransform()
+            slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(None, referenceVolumeNode.GetParentTransformNode(), transformRasToVolumeRas)
+            
+            markupROI_RAS['RASmin'] = transformRasToVolumeRas.TransformPoint(markupROI_RAS['RASmin'])
+            markupROI_RAS['RASmax'] = transformRasToVolumeRas.TransformPoint(markupROI_RAS['RASmax'])
+        
+        markupROI_IJK_inRefVol = self.convertRAStoIJKVolumeNodeCoordinates(markupROI_RAS, referenceVolumeNode)
+        
+        return markupROI_IJK_inRefVol
+    
+    def getRASmarkupROICoordinates(self, markupBoxROINode):
+        
+        boundingBoxRASCoordinates = np.zeros(6)
+        markupBoxROINode.GetBounds(boundingBoxRASCoordinates)
+        # if DEBUG_mode
+        print(f'ROI coordinates: {boundingBoxRASCoordinates}')
+        # Get BOX corners in RAS:
+        bbox_rmin, bbox_rmax, bbox_amin, bbox_amax, bbox_smin, bbox_smax = boundingBoxRASCoordinates
+        outputRAS = {'RASmin': [bbox_rmin, bbox_amin, bbox_smin],
+                        'RASmax': [bbox_rmax, bbox_amax, bbox_smax]}
+        
+        return outputRAS
+    
+    def convertRAStoIJKVolumeNodeCoordinates(self, RAScoordinatesDict, referenceVolumeNode):
+        
+        volumeSize = referenceVolumeNode.GetImageData().GetDimensions() # IJK
+        bbox_ijk = np.ones((2,4))#, dtype=int)
+        referenceDimensions = np.full_like(bbox_ijk, np.append(volumeSize,2), dtype=int) - 1
+        
+        volumeRasToIjk = vtk.vtkMatrix4x4()
+        referenceVolumeNode.GetRASToIJKMatrix(volumeRasToIjk)
+        volumeRasToIjk.MultiplyPoint(np.append(RAScoordinatesDict['RASmin'], 1.0), bbox_ijk[0,:])
+        # if DEBUG_mode
+        print(f"ROI upper corner: [{','.join([f'{int(ijk)}' for ijk in bbox_ijk[0,:]])}]")
+
+        volumeRasToIjk.MultiplyPoint(np.append(RAScoordinatesDict['RASmax'], 1.0), bbox_ijk[1,:])
+        # if DEBUG_mode
+        print(f"ROI lower corner: [{','.join([f'{int(ijk)}' for ijk in bbox_ijk[1,:]])}]")
+        
+        # Round the elements and convert them to integer:
+        bbox_ijk = bbox_ijk.round().astype(int)
+        # In case any coordinate is outside the volume, set it to 0 or max:
+        bbox_ijk[bbox_ijk < 0] = 0
+        outsideIndices = ( bbox_ijk > referenceDimensions )
+        bbox_ijk[outsideIndices] = referenceDimensions[outsideIndices]
+        
+        outputIJK = {'IJKmin': np.min(bbox_ijk[:,:-1], axis=0),
+                        'IJKmax': np.max(bbox_ijk[:,:-1], axis=0)+1}
+        print(f'ROI corner fitted into the volume: {outputIJK}')
+        return outputIJK
+    
+    def getBoxROIOriginCoordinates(self, markupBoxROINode):
+        
+        roiDiameter = markupBoxROINode.GetSize()
+        roiOrigin_Roi = [-roiDiameter[0]/2, -roiDiameter[1]/2, -roiDiameter[2]/2, 1]
+        roiToRas = markupBoxROINode.GetObjectToWorldMatrix()
+        roiOrigin_Ras = roiToRas.MultiplyPoint(roiOrigin_Roi)
+        # These are meant to be used in any volumeNode that we can translate into the markup ROI coordinates:
+        #  scalarVolumeNode.SetIJKToRASDirections(roiToRas.GetElement(0,0), roiToRas.GetElement(0,1), roiToRas.GetElement(0,2), roiToRas.GetElement(1,0), roiToRas.GetElement(1,1), roiToRas.GetElement(1,2), roiToRas.GetElement(2,0), roiToRas.GetElement(2,1), roiToRas.GetElement(2,2))
+        #  scalarVolumeNode.SetOrigin(roiOrigin_Ras[0:3])
+
+        return roiToRas, roiOrigin_Ras
+    
+    def translateVolumeToROIBox(self, volumeNodeToTranslate, markupBoxROINode):
+        
+        roi2RAS, roiOrigin_RAS = self.getBoxROIOriginCoordinates(markupBoxROINode)
+        volumeNodeToTranslate.SetIJKToRASDirections(roi2RAS.GetElement(0,0), roi2RAS.GetElement(0,1), roi2RAS.GetElement(0,2), roi2RAS.GetElement(1,0), roi2RAS.GetElement(1,1), roi2RAS.GetElement(1,2), roi2RAS.GetElement(2,0), roi2RAS.GetElement(2,1), roi2RAS.GetElement(2,2))
+        volumeNodeToTranslate.SetOrigin(roiOrigin_RAS[0:3])
+
+        return volumeNodeToTranslate
+    
+    def fitBoxROImarkupToVolume(self, referenceVolumeNode, markupROINode):
+        
+        cropVolumeParameters = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLCropVolumeParametersNode")
+        cropVolumeParameters.SetInputVolumeNodeID(referenceVolumeNode.GetID())
+        cropVolumeParameters.SetROINodeID(markupROINode.GetID())
+        slicer.modules.cropvolume.logic().SnapROIToVoxelGrid(cropVolumeParameters)  # optional (rotates the ROI to match the volume axis directions)
+        slicer.modules.cropvolume.logic().FitROIToInputVolume(cropVolumeParameters)
+        slicer.mrmlScene.RemoveNode(cropVolumeParameters)        
+        
     # def setParametricMapsVolumeSequence(self, volumeNode, )
     # JU - This may be useful to define the table and labels:
     # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#create-color-table-node
     # JU - End of user-defined section
 
     def process(self,
-                inputVolume: vtkMRMLSequenceNode, #vtkMRMLScalarVolumeNode,
-                maskVolume: vtkMRMLSegmentationNode, #vtkMRMLScalarVolumeNode,
-                outputMaps: vtkMRMLSequenceNode,
-                outputLabelMap: vtkMRMLLabelMapVolumeNode,
-                referenceBoxROI: vtkMRMLMarkupsROINode, # Add roi Box as input argument!
+                inputVolumeSequenceNode: vtkMRMLSequenceNode, #vtkMRMLScalarVolumeNode,
+                maskVolumeSegmentationNode: vtkMRMLSegmentationNode, #vtkMRMLScalarVolumeNode,
+                outputMapsSequenceNode: vtkMRMLSequenceNode,
+                outputLabelMapVolumeNode: vtkMRMLLabelMapVolumeNode,
+                referenceBoxROINode: vtkMRMLMarkupsROINode, # Add roi Box as input argument!
                 tableNodeDict: dict={'TableName': [vtkMRMLTableNode, 'label_list']}, #vtkMRMLTableNode,
                 preContrastIndex: int=0,
                 earlyPostContrastIndex: int=1,
                 latePostContrastIndex: int=-1,
-                PEthreshold: float=80.0,
+                PEthreshold: float=70.0,
+                BKGRNDthreshold: float=60.0,
                 segmentNodeID: str='', 
                 ) -> None:
         """
@@ -1013,199 +1245,322 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         :param showResult: show output volume in slice viewers
         """
 
-        if not inputVolume or not maskVolume:
+        if not inputVolumeSequenceNode or not maskVolumeSegmentationNode:
             raise ValueError("Input or output volume is invalid")
-        
-        # JU - Create temporary volumes to store the maps, just before sending them to the output sequence:
-        # Pre-populate it with the info from the first input volume in the input sequence, so we get the same image orientation,dimensions, etc.:
-        outputVolume = slicer.modules.volumes.logic().CloneVolume(inputVolume.GetNthDataNode(0), "temporary")        
-
+                
         import time
 
-        startTime = time.perf_counter()
-        logging.info("Processing started")
+        # startTime = time.perf_counter()
+        # logging.info("Processing started")
+        
+        # Get input volume dimensions
+        inputVolume4Darray = self.getVolumeDataFromSequence(inputVolumeSequenceNode)
+        [nt, nz, nx, ny] = inputVolume4Darray.shape
+
+        # Allocate space in TICtable for the intensity values from the DCE array
+        time_intensity_curve = np.full((nt, len(tableNodeDict['TICTable'][1])), np.nan)
+        # TODO: replace it by te actual sequence timings (e.g. trigger_times)
+        time_intensity_curve[:,0] = np.linspace(0, nt, nt, endpoint=False) 
+        
+        # JU - Create temporary volumes to work with inside this function:
+        # Pre-populate it with the info from the first input volume in the input sequence, so we get the same image orientation,dimensions, etc.:
+        tempReferenceVolumeNode = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "temporary")        
+        tempSERVolumeNode = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "serMap")        
+        tempPEVolumeNode  = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "peMap")        
+        
+        roiIJK = self.getBoxROIIJKCoordinates(referenceBoxROINode, tempReferenceVolumeNode)
+
+        # MIP to be used as the backgdround image for the maps and set up a global threshold from the pre-contrast image
+        mip_volume = np.max(inputVolume4Darray, axis=0)
+        slicer.util.updateVolumeFromArray(tempReferenceVolumeNode, mip_volume)
+        outputMapsSequenceNode.SetDataNodeAtValue(tempReferenceVolumeNode, "MIP")
+        
+        SERmapTemplate = np.zeros((nz,ny,nx))
+        PEmapTemplate  = np.zeros((nz,ny,nx))
         
         # Get the segment selected by the list "Segment Label Mask":
-        # print(f'Processing - SegmentNodeID: {segmentNodeID}')
-        maskSegmentation = maskVolume.GetSegmentation()
-        # Before doing anything, loop over the segmentations and delete the corresponding to the label maps that are created locally by this function:
+        maskSegmentation = maskVolumeSegmentationNode.GetSegmentation()
+        # Before doing anything, loop over the segmentation list and delete all labels created locally by this function in previous runs:
         for segment_iID in maskSegmentation.GetSegmentIDs():
             segment_i = maskSegmentation.GetSegment(segment_iID)
             if segment_i.GetName() in self.SERlegend:
                 maskSegmentation.RemoveSegment(segment_i)
         
-        segmentID = maskSegmentation.GetSegment(segmentNodeID) #GetNthSegmentID(segmentNodeIndex)
-        segmentName = segmentID.GetName()
         # Ensure visibility for the selected segment is ON (TRUE)
-        maskDisplayNode = maskVolume.GetDisplayNode()
-        maskDisplayNode.SetSegmentVisibility(segmentNodeID, True) 
-
-        # To get Summary statistics use the SegmentStatistics module
-        import SegmentStatistics
-        segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
-        segStatLogic.getParameterNode().SetParameter("Segmentation", maskVolume.GetID())
-        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled",str(True))
-        segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_diameter_mm.enabled",str(True))
-        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_x.enabled",str(True))
-        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_y.enabled",str(True))
-        # segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_direction_ras_z.enabled",str(True))
-        segStatLogic.computeStatistics()
-        stats = segStatLogic.getStatistics()
-        # Get Segment volume:
-        volume_cm3 = stats[segmentNodeID,"LabelmapSegmentStatisticsPlugin.volume_cm3"]            
-        end_proc_mask_time = time.perf_counter()
-        # Get Segment Oriented Bounding Box Diameter 
-        obb_diameter_mm = np.array(stats[segmentNodeID,"LabelmapSegmentStatisticsPlugin.obb_diameter_mm"])
-        maxROIDiameter = np.max(obb_diameter_mm)
-        print(f'OBB diameter: {obb_diameter_mm}[mm]')
-        # TODO: For now ignore the reference box, until I understand how to use in the cropping context
-        
-        # JU - DEBUG Mode:
-        # print(f'Segment name: {segmentName}')
-        # print(f'Pre-Contrast Index: {preContrastIndex}')
-        # print(f'Early Post-Contrast Index: {earlyPostContrastIndex}')
-        # print(f'Late Post-Contrast Index: {latePostContrastIndex}')
-
-        label = slicer.util.arrayFromSegmentBinaryLabelmap(maskVolume, segmentNodeID)
-        points  = np.where( label == 1 )  # or use another label number depending on what you segmented
-        # Size of the numpy array is ordered as [nz, ny(row), nx(col)] TODO: verify row and col are correctly assigned!!
-        [nz, ny, nx] = slicer.util.arrayFromVolume(inputVolume.GetNthDataNode(0)).shape
-        nt = inputVolume.GetNumberOfDataNodes()
-        inputVolume4Darray = np.zeros([nt, nz, ny, nx]) # JU to follow ITK convention for 4D volumes
-        
-        # Fill in the 4D array from the sequence node
-        # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#access-voxels-of-a-4d-volume-as-numpy-array
-        for volumeIndex in range(nt):
-            inputVolume4Darray[volumeIndex, :, :, :] = slicer.util.arrayFromVolume(inputVolume.GetNthDataNode(volumeIndex))
+        selectedSegment = maskSegmentation.GetSegment(segmentNodeID)
+        maskDisplayNode = maskVolumeSegmentationNode.GetDisplayNode()
+        maskDisplayNode.SetSegmentVisibility(segmentNodeID, True)
+        # Load the label map and check whether is empty or not. If empty, then use the ROI markup as the label map:
+        label = slicer.util.arrayFromSegmentBinaryLabelmap(maskVolumeSegmentationNode, segmentNodeID)
+        if not label.any():
+            # the selected mask is empty --> use the ROI markup box only
+            print(f'Label Map is empty. Using the ROI markup box')
+            # Get ROI box as nd binary array:
+            voi_mask = np.zeros((nz, ny, nx))
+            voi_mask[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = 1
             
-        time_intensity_curve = np.full((nt, len(tableNodeDict['TICTable'][1])), np.nan)
-        time_intensity_curve[:,0] = np.linspace(0, nt, nt, endpoint=False) # TODO: replace it by te actual sequence timings (e.g. trigger_times)
-        # print(f'Volume Size (Nz x Ny x Nx): [{nz} x {ny} x {nx}]')
-        end_load_4dVol_time = time.perf_counter()
+            slicer.util.updateSegmentBinaryLabelmapFromArray(voi_mask, maskVolumeSegmentationNode, segmentNodeID)
+            label = slicer.util.arrayFromSegmentBinaryLabelmap(maskVolumeSegmentationNode, segmentNodeID)
+            selectedSegment.SetName('Segment from ROI')
+                
+        # Crop the volumes before doing any calculation 
+        # TODO: Cropping might not have any effect in the efficiency, as I'm processing over the valid voxels only, 
+        #       as defined by the ROI markup or user-defined segmentation mask
+        # TODO: For some unknown reason, even when cropping "manually" using the indices, the output maps get rotated around the ROI box corner (apparently)
+        #       Fortunately, the time to process the whole volume is not that critical at this stage, so can live without cropping
+        croppingVolumes = True
+        if croppingVolumes:
+            # Crop the volumes using the ROI box:
+            # label = self.cropVolumeFromROI(label, referenceBoxROINode, tempReferenceVolumeNode)
+            # inputVolume4Darray = self.cropSequenceVolumeFromROI(inputVolume4Darray, referenceBoxROINode, tempReferenceVolumeNode)
+            inputVolume4Darray = inputVolume4Darray[:, roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]]
+            label = label[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]]
+            # update origin to the cropped volume:
+            # temporaryVolumeNode = self.translateVolumeToROIBox(temporaryVolumeNode, referenceBoxROINode)
         
-        # MIP Volume
-        mip_volume = np.max(inputVolume4Darray, axis=0)
-        slicer.util.updateVolumeFromArray(outputVolume, mip_volume)
-        outputMaps.SetDataNodeAtValue(outputVolume, "MIP")
+        print(''.join(['§']*100))
+        print(f'JU - This are the corners of the ROI box:')
+        print(''.join(['-']*50))
+        print(f"\tSxyz: {roiIJK['IJKmin']}")
+        print(f"\tFxyz: {roiIJK['IJKmax']}")
+        print(f'Number of non-zeroes in the mask: {np.count_nonzero(label)}')
+        print(''.join(['§']*100))
         
+        # end_load_4dVol_time = time.perf_counter()
+         
         # Represent the data in terms of SER (S(t)/S0(t)). identifying S0 as the pre-contrast index:
         St0 = inputVolume4Darray[preContrastIndex, :, :, :]
-        # print(f'Volume Size: {S_t0.shape}')
-        
-        St_minus_St0 = 100 * ( (inputVolume4Darray - St0) / (St0 + self.EPSILON) )
-        # print(f'Dynamic image size: {St_minus_St0.shape}')
-        St_minus_St0[St_minus_St0 >= self.UPPER_ENH_THRESHOLD] = self.UPPER_ENH_THRESHOLD # It trims upper values too high. Set them to 0, so they don't affect stats
+        # The background threshold is defined from the masked only
+        bckgrnd_thresh = (BKGRNDthreshold/100.0) * np.percentile(St0, 95)
+        base_mask = (St0 >= bckgrnd_thresh) &  label
+
+        print(''.join(['§']*100))
+        print(f'Stats of the St0 data:')
+        print(''.join(['-']*50))
+        print(f'St0 volume size: {St0.shape}')
+        print(f'[Min, Median, Max]: [{np.min(St0):.2f}, {np.median(St0):.2f}, {np.max(St0):.2f}]')
+        print(f'Mean ± Std: {np.mean(St0):.2f} ± {np.std(St0):.2f}')
+        print(f'PCT Value: {BKGRNDthreshold}')
+        print(f'95th Percentile: {np.percentile(St0, 95)}')
+        print(f'Background Threshold: {bckgrnd_thresh}')
+        print(''.join(['§']*100))
+
+        St_minus_St0 = inputVolume4Darray - St0
         
         St1_minus_St0 = St_minus_St0[earlyPostContrastIndex, :, :, :]
         Stn_minus_St0 = St_minus_St0[latePostContrastIndex, :, :, :]
-
-        # JU - This operates over the Selected ROI (e.g. Tumour Tissue)
-        for time_index in range(nt):
-            uptake_ti = St_minus_St0[time_index, :, :, :]# slicer.util.arrayFromVolume(inputVolume.GetNthDataNode(volumeIndex)) 
-            ser_roi  = uptake_ti[points] # this will be a list of the label values
-            time_intensity_curve[time_index,1] =  ser_roi.mean()
-
-        # JU - PE Calculations
-        # Crop the volumes before doing any calculation - But somehow, need to keep the original coordinates to put them back
-        # TODO: for now, keep the cropping out of the equation...
-        # label = self.cropVolumeFromROI(label, referenceBoxROI)
-        # points  = np.where( label == 1 )  # or use another label number depending on what you segmented
-        # S_t0 = self.cropVolumeFromROI(S_t0, referenceBoxROI)
-        # S_t1 = self.cropVolumeFromROI(S_t1, referenceBoxROI)
-        # S_tn = self.cropVolumeFromROI(S_tn, referenceBoxROI)
-        PE = np.zeros_like(St1_minus_St0)
-        PE[points] = St1_minus_St0[points]
-        PE[PE < PEthreshold] = 0.0
-        PEnull = np.where(PE <= 0.0)
         
-        slicer.util.updateVolumeFromArray(outputVolume, PE)
-        outputMaps.SetDataNodeAtValue(outputVolume, "PE")
+        PE = 100 * St1_minus_St0 / ( St0 + self.EPSILON )
+        base_mask &= (PE >= PEthreshold)
+
+        PE = np.where(base_mask, PE, 0)
+
+        print(''.join(['§']*100))
+        print(f'Stats of the PE data:')
+        print(''.join(['-']*50))
+        print(f'PE volume size: {PE.shape}')
+        print(f'NonZero elements: {np.count_nonzero(PE[PE>0])}')
+        print(f'[Min, Median, Max]: [{np.min(PE[PE>0]):.2f}, {np.median(PE[PE>0]):.2f}, {np.max(PE[PE>0]):.2f}]')
+        print(f'Mean ± Std: {np.mean(PE[PE>0]):.2f} ± {np.std(PE[PE>0]):.2f}')
+        print(f'Pre-Contras Index: {preContrastIndex}')
+        print(f'Early Post-Contras Index: {earlyPostContrastIndex}')
+        print(f'Late Post-Contras Index: {latePostContrastIndex}')
+        print(''.join(['§']*100))
         
-        SER = np.zeros_like(St1_minus_St0)
-        SER[points] = ( St1_minus_St0[points] / (Stn_minus_St0[points] + self.EPSILON ) ) 
-        SER[PEnull] = 0.0
+        PEmapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = PE
+
+        slicer.util.updateVolumeFromArray(tempPEVolumeNode, PEmapTemplate)
+        outputMapsSequenceNode.SetDataNodeAtValue(tempPEVolumeNode, "PE")
+        
+        SER = ( St1_minus_St0 / ( Stn_minus_St0 + self.EPSILON ) ) 
         SER[SER < 0.0] = 0.0
         SER[SER > self.INF_THRESHOLD] = 0.0
+        base_mask &= (SER >= 0.0)
 
+        SER = np.where(base_mask, SER, 0)
+        
+        print(''.join(['§']*100))
+        print(f'Stats of the SER data:')
+        print(''.join(['-']*50))
+        print(f'NonZero elements: {np.count_nonzero(SER[SER>0])}')
+        print(f'[Min, Median, Max]: [{np.min(SER[SER>0]):.2f}, {np.median(SER[SER>0]):.2f}, {np.max(SER[SER>0]):.2f}]')
+        print(f'Mean ± Std: {np.mean(SER[SER>0]):.2f} ± {np.std(SER[SER>0]):.2f}')
+        print(''.join(['§']*100))
+
+
+        print(''.join(['§']*100))
+        print(f"Stats around BR_PE_MASK:")
+        print(''.join(['-']*50))
+        print(f'NonZero elements: {np.count_nonzero(base_mask)}')
+        print(f'max Value: {np.max(base_mask)} (it must be 1)')
+        print(''.join(['§']*100))
+
+        kernel = np.ones((3,3,3))
+        kernel[1,1,1] = 100
+        # JU - This convolution is to define the maximum over a neighbourhood
+        convbrmask = signal.convolve(base_mask, kernel, mode='same')
+        base_mask = (convbrmask >= (100 + self.PIXEL_CONNECTIVITY))
+        print(''.join(['§']*100))
+        print(f'Conn Pix Mask stats:')
+        print(''.join(['-']*50))
+        print(f'Connectivity: {self.PIXEL_CONNECTIVITY}')
+        print(f'Non Zero elements: {np.count_nonzero(base_mask)}')
+        print(f'Mask size: {base_mask.shape}')
+        print(f'Max Value: {np.max(base_mask)}')
+        print(''.join(['§']*100))
+        
+        # conv_mask = cv2.blur(base_mask.astype(float), (9,9))
+        # print(f'MinMeanMax: {[np.min(conv_mask), np.mean(conv_mask), np.max(conv_mask)]}')
+        # base_mask = (conv_mask > (np.mean(conv_mask)+2.0*np.std(conv_mask)))
+
+        # Relevant for when adding a user-defined segmentation mask (e.g. Tumour_tissue)
+        seg_points = np.where(base_mask)
+        
+        print(''.join(['§']*100))
+        print(f'Tumour Mask stats:')
+        print(''.join(['-']*50))
+        print(f'Tumour Mask size: {base_mask.shape}')
+        print(f'Non Zero elements: {np.count_nonzero(base_mask)}')
+        print(f'Mask size: {base_mask.shape}')
+        print(f'Max Value: {np.max(base_mask)}')
+        print(''.join(['§']*100))
+        
+        # This is executed by ftv_map_gen2 (line 2016 in DCE_TumourMapProcess.py)
+        print(''.join(['§']*100))
         SERmap = np.zeros_like(SER)
         for idx, (lb, ub) in enumerate(zip(self.SERLevelLB, self.SERLevelUB)):
-            print(f'{lb} < SER ≤ {ub}: {idx+1}')
+            print(f'Range: SER[xyz] > {lb} & SER[xyz] <= {ub} - Label: {idx+1} (Colour: {self.SERColourMapDictionary[self.SERlegend[idx]]})')
+            print(f' (Legend: {self.SERlegend[idx]})')
             SERmap[(SER > lb) & (SER <= ub)] = idx+1
         # Add the last element of the interval that makes MaxSER < SER:
         idx = len(self.SERLevelUB)
-        print(f'{self.SERLevelUB[-1]} < SER: {idx + 1}')
         SERmap[SER > self.SERLevelUB[-1]] = idx + 1
-        print(f'SER: {SER[SER>self.SERLevelUB[-1]]}')
-        # Count occurrences within the ROI:
-        unique, counts = np.unique(SERmap[SERmap > 0], return_counts=True)
-        print(f'Labels: {unique}')
-        # pcFromCounts = 100 * counts/np.sum(label==1) # np.sum(counts)
-        pcFromCounts = 100 * counts/np.sum(counts)
-        
-        slicer.util.updateVolumeFromArray(outputVolume, SERmap)
-        volumes_logic = slicer.modules.volumes.logic()
-        volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMap, outputVolume)
-        
-        # JU - DEBUG Mode:
-        # print(f'Upper Threshold: {self.UPPER_ENH_THRESHOLD}')
-        # print(f'PE Threshold: {PEthreshold}')
-        # print(f'Max PE: {np.max(PE)}')
-        
-        max_ENH = np.max(St_minus_St0, axis=0)
-        delta_ENH = Stn_minus_St0[points] - St1_minus_St0[points]
-        first_pass_ENH = St1_minus_St0[points]
+        SERmap *= base_mask
+        print(f'Range: SER[xyz] > {self.SERLevelUB[-1]} - Label: {idx+1} (Colour: {self.SERColourMapDictionary[self.SERlegend[idx]]})')
+        print(f' (Legend: {self.SERlegend[idx]})')
+        print(''.join(['§']*100))
 
+        SERmapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = SERmap
+        
+        slicer.util.updateVolumeFromArray(tempSERVolumeNode, SERmapTemplate)
+
+        volumes_logic = slicer.modules.volumes.logic()
+        volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
+        # Import label map into a segmentation:
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)       
+        outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
+
+
+        # TODO: Can I make it simpler??
+        # FTV map label from SERmap:
+        FTVmapVolume = np.where(SERmap > 0, 1.0, 0.0)
+        print(f'Size FTV Volume: {FTVmapVolume.shape}')
+        ftvLabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "FTV label")
+        # ftvSegmentationAuxVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "FTV segmentation")
+        slicer.util.updateVolumeFromArray(tempSERVolumeNode, FTVmapVolume)
+        # volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
+        volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, ftvLabelMapVolumeNode, tempSERVolumeNode)
+        FTVsegmentName = 'FTV_Total'
+        maskVolumeSegmentationNode.GetSegmentation().AddEmptySegment(FTVsegmentName)
+        # ftvSegmentationAuxVolumeNode.GetSegmentation().AddEmptySegment(FTVsegmentName)
+        FTVsegmentID = vtk.vtkStringArray()
+        FTVsegmentID.InsertNextValue(FTVsegmentName)
+        # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode, FTVsegmentID)       
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(ftvLabelMapVolumeNode, maskVolumeSegmentationNode, FTVsegmentID)
+        slicer.mrmlScene.RemoveNode(ftvLabelMapVolumeNode)
+        # FTVsegmentStats = self.getStatsFromMask(ftvSegmentationAuxVolumeNode, 
+        #                                         ftvSegmentationAuxVolumeNode.GetSegmentation().GetSegmentIDs()[0])
+        FTVsegmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, 
+                                                FTVsegmentName)
+        maskVolumeSegmentationNode.RemoveSegment(FTVsegmentName)
+        # slicer.mrmlScene.RemoveNode(ftvSegmentationAuxVolumeNode)
+        
+
+        # JU - This operates over the Selected ROI (e.g. Tumour Tissue)
+        uptake_ti = 100 * St_minus_St0 / (St0 + self.EPSILON)
+        for time_index in range(nt):
+            ser_roi  = uptake_ti[time_index,:,:,:]
+            time_intensity_curve[time_index,1] =  ser_roi[seg_points].mean()
+
+        max_ENH = np.max(uptake_ti, axis=0)
+        delta_ENH = (uptake_ti[latePostContrastIndex,:,:,:] - uptake_ti[earlyPostContrastIndex,:,:,:])[seg_points]
+        first_pass_ENH = uptake_ti[earlyPostContrastIndex,:,:,:][seg_points]
         [m_slope, n_coeff], time_intensity_curve[1:,2] = self.simple_linear_fit(time_intensity_curve[1:,0], time_intensity_curve[1:,1])
-        # # JU - DEBUG: should match the mean value of LabelStatistics calculation as a double-check
-        # print(f'Mean Values: {time_intensity_curve}') 
+
+        # Statistics for the user-defined Segmentation mask
+        segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segmentNodeID)
+        # # Segment Oriented Bounding Box Diameter 
+        maxROIDiameter = {'name': 'ROI longest axis',
+                            'value': np.max(segmentStats['obb_diameter_mm']['value']),
+                            'units': segmentStats['obb_diameter_mm']['units']}
+        # ROI Volume:
+        roiVolume = {'name': 'ROI Volume',
+                        'value': segmentStats['volume_cm3']['value'],
+                        'units': segmentStats['volume_cm3']['units']}
+        
         labelColumn = vtk.vtkStringArray()
         labelColumn.SetName(tableNodeDict['SummaryTable'][1][0])
         statsColumn = vtk.vtkDoubleArray()
         statsColumn.SetName(tableNodeDict['SummaryTable'][1][1])
         unitsColumn = vtk.vtkStringArray()
         unitsColumn.SetName(tableNodeDict['SummaryTable'][1][2])
-        # Add the percentage of label maps:
-        for rows in zip(self.SERlegend, pcFromCounts, ['%']*len(self.SERlegend)):
-            labelColumn.InsertNextValue(rows[0])
-            statsColumn.InsertNextValue(rows[1])
-            unitsColumn.InsertNextValue(rows[2])
-        # Add all other stats:
-        labelColumnContent = ['Maximum ROI Diameter', 'Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', 'ROI volume']
-        statsColumnContent = [maxROIDiameter, max_ENH[points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, volume_cm3]
-        unitsColumnContent = ['mm', '%', '%', '%', '[]', 'cm3']
+        # Add stats to Summary Table:
+        labelColumnContent = [maxROIDiameter['name'], 'Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', roiVolume['name']]
+        statsColumnContent = [maxROIDiameter['value'], max_ENH[seg_points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, roiVolume['value']]
+        unitsColumnContent = [maxROIDiameter['units'], '%', '%', '%', '[]', roiVolume['units']]
         for rows in zip(labelColumnContent, statsColumnContent, unitsColumnContent):
             labelColumn.InsertNextValue(rows[0])
             statsColumn.InsertNextValue(rows[1])
             unitsColumn.InsertNextValue(rows[2])
-            
-            
 
-        stopTime = time.perf_counter()
-        logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
-        print(f'Elapsed time to load the masks: {(end_proc_mask_time-startTime):.2f}s')
-        print(f'Elapsed time to load 4D volume and get stats: {(end_load_4dVol_time-end_proc_mask_time):.2f}s')
-        print(f'Elapsed time for the whole process: {(stopTime - startTime):.2f}s')
+        # Statistics for the SER Label Maps:
+        nameColumn = vtk.vtkStringArray()
+        nameColumn.SetName(tableNodeDict['SERSummaryTable'][1][0])
+        volumeColumn = vtk.vtkDoubleArray()
+        volumeColumn.SetName(tableNodeDict['SERSummaryTable'][1][1])
+        distColumn = vtk.vtkDoubleArray()
+        distColumn.SetName(tableNodeDict['SERSummaryTable'][1][2])
+
+        # Iterate over the segmentation mask and get statistics for each SER label:
+        maskSegmentations = maskVolumeSegmentationNode.GetSegmentation()
+        FTVstats = [FTVsegmentStats['volume_cm3']['value'], FTVsegmentStats['voxel_count']['value']]
+        for segment_iID in maskSegmentations.GetSegmentIDs():
+            segment_i = maskSegmentation.GetSegment(segment_iID)
+            if segment_i.GetName() in self.SERlegend:
+                segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
+                nameColumn.InsertNextValue(segment_i.GetName())
+                volumeColumn.InsertNextValue(segmentStats['volume_cm3']['value'])
+                distColumn.InsertNextValue(100 * segmentStats['voxel_count']['value'] / FTVstats[1])
+        nameColumn.InsertNextValue('FTV (Total Volume)')
+        volumeColumn.InsertNextValue(FTVsegmentStats['volume_cm3']['value'])
+        distColumn.InsertNextValue(100 * FTVsegmentStats['voxel_count']['value']/FTVstats[1])
+
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
         tableNodeDict['SummaryTable'][0].AddColumn(labelColumn)
         tableNodeDict['SummaryTable'][0].AddColumn(statsColumn)
         tableNodeDict['SummaryTable'][0].AddColumn(unitsColumn)
+        tableNodeDict['SERSummaryTable'][0].AddColumn(nameColumn)
+        tableNodeDict['SERSummaryTable'][0].AddColumn(volumeColumn)
+        tableNodeDict['SERSummaryTable'][0].AddColumn(distColumn)
 
         # Update viewer with results:
-        updatedSequenceBrowserNode = self.findBrowserForSequence(outputMaps)
+        updatedSequenceBrowserNode = self.findBrowserForSequence(outputMapsSequenceNode)
         slicer.modules.sequences.toolBar().setActiveBrowserNode(updatedSequenceBrowserNode)
         # Set background image to be the MIP:
         updatedSequenceBrowserNode.SetSelectedItemNumber(0) # MIP is the first node we added
-        self.updateViewer(backgroundVolume=updatedSequenceBrowserNode.GetProxyNode(outputMaps),
-                          labelVolume=outputLabelMap)
-        self.showVolumeRenderingMIP(updatedSequenceBrowserNode.GetProxyNode(outputMaps))
-        # Import label map into a segmentation:
-        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMap, maskVolume)
+        self.updateViewer(backgroundVolume=updatedSequenceBrowserNode.GetProxyNode(outputMapsSequenceNode),
+                          labelVolume=outputLabelMapVolumeNode)
+        self.showVolumeRenderingMIP(updatedSequenceBrowserNode.GetProxyNode(outputMapsSequenceNode))
+        # # Import label map into a segmentation:
+        # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
         # Add the SER maps to the 3D rendering:
-        maskVolume.CreateClosedSurfaceRepresentation()
-        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(outputLabelMap)
-        # Finally, remove the temporary node (it should be wrapped into a try/except/finally statement to ensure it always get deleted)
-        slicer.mrmlScene.RemoveNode(outputVolume)
+        maskVolumeSegmentationNode.CreateClosedSurfaceRepresentation()
+        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(outputLabelMapVolumeNode)
+        # Finally, remove the temporary nodes (it should be wrapped into a try/except/finally statement to ensure it always get deleted)
+        slicer.mrmlScene.RemoveNode(tempReferenceVolumeNode)
+        slicer.mrmlScene.RemoveNode(tempPEVolumeNode)
+        slicer.mrmlScene.RemoveNode(tempSERVolumeNode)
         
         
 

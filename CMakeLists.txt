@@ -6,7 +6,7 @@ project(parametricDCEMRI)
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/parametricDCEMRI")
 set(EXTENSION_CATEGORY "Quantification")
-set(EXTENSION_CONTRIBUTORS "Jose L. Ulloa (iSANDEx Ltd.), Nasib Washal (Queen's Hospital)")
+set(EXTENSION_CONTRIBUTORS "Jose L. Ulloa (iSANDEx Ltd.), Muhammad Qadir (Austin Health)")
 set(EXTENSION_DESCRIPTION "Slicer Extension to derive non-PK parametric maps from signal intensity analysis of DCE-MRI datasets")
 set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/parametricDCEMRI.png")
 set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/parametricDCEMRI/Screenshots/1.png")
