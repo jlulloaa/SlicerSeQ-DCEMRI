@@ -22,7 +22,7 @@ from slicer import qMRMLSegmentEditorWidget, qMRMLSegmentSelectorWidget
 
 import numpy as np
 from scipy import signal
-import cv2
+# import cv2
 #
 # quantification
 #
