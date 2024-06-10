@@ -1524,16 +1524,32 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Iterate over the segmentation mask and get statistics for each SER label:
         maskSegmentations = maskVolumeSegmentationNode.GetSegmentation()
         FTVstats = [FTVsegmentStats['volume_cm3']['value'], FTVsegmentStats['voxel_count']['value']]
+        SERlegendCheck = [True]*len(self.SERlegend)
         for segment_iID in maskSegmentations.GetSegmentIDs():
-            segment_i = maskSegmentation.GetSegment(segment_iID)
-            if segment_i.GetName() in self.SERlegend:
+            segmentName = maskSegmentation.GetSegment(segment_iID).GetName()
+            # segmentName = segment_i.GetName()
+            if segmentName in self.SERlegend:
+                segmentPos = self.SERlegend.index(segmentName)
                 segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
-                nameColumn.InsertNextValue(segment_i.GetName())
-                volumeColumn.InsertNextValue(segmentStats['volume_cm3']['value'])
-                distColumn.InsertNextValue(100 * segmentStats['voxel_count']['value'] / FTVstats[1])
-        nameColumn.InsertNextValue('FTV (Total Volume)')
-        volumeColumn.InsertNextValue(FTVsegmentStats['volume_cm3']['value'])
-        distColumn.InsertNextValue(100 * FTVsegmentStats['voxel_count']['value']/FTVstats[1])
+                # nameColumn.InsertNextValue(segmentName)
+                # volumeColumn.InsertNextValue(segmentStats['volume_cm3']['value'])
+                # distColumn.InsertNextValue(100 * segmentStats['voxel_count']['value'] / FTVstats[1])
+                nameColumn.InsertValue(segmentPos, segmentName)
+                volumeColumn.InsertValue(segmentPos, segmentStats['volume_cm3']['value'])
+                distColumn.InsertValue(segmentPos, 100 * segmentStats['voxel_count']['value'] / FTVstats[1])
+                SERlegendCheck[segmentPos] = False
+        for idx in range(len(self.SERlegend)):
+            if SERlegendCheck[idx]:
+                nameColumn.InsertValue(idx, self.SERlegend[idx])
+                volumeColumn.InsertValue(idx, 0.0)
+                distColumn.InsertValue(idx, 0.0)
+                
+        # nameColumn.InsertNextValue('FTV (Total Volume)')
+        # volumeColumn.InsertNextValue(FTVsegmentStats['volume_cm3']['value'])
+        # distColumn.InsertNextValue(100 * FTVsegmentStats['voxel_count']['value']/FTVstats[1])
+        nameColumn.InsertValue(len(self.SERlegend), 'FTV (Total Volume)')
+        volumeColumn.InsertValue(len(self.SERlegend), FTVsegmentStats['volume_cm3']['value'])
+        distColumn.InsertValue(len(self.SERlegend), 100 * FTVsegmentStats['voxel_count']['value']/FTVstats[1])
 
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
