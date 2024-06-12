@@ -796,7 +796,11 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     bolusInjTimes.append((dcmMetaData.ContrastBolusStartTime))
             
             acquisitionTimeStart = sorted(acquisitionTimes)[0] # np.min(np.array(acquisitionTimes))
-            bolusInjTimeList = np.unique(np.array(bolusInjTimes))[0]
+            if bolusInjTimes:
+                bolusInjTimeList = np.unique(np.array(bolusInjTimes))[0]
+            else:
+                bolusInjTimeList = '0'
+
             bolusInjTimeRelativeToStart = self.tm2ms(bolusInjTimeList) - self.tm2ms(acquisitionTimeStart)
             timings = {'timepoints': timeFrames, 
                        'injectionTime': bolusInjTimeRelativeToStart}
@@ -1440,6 +1444,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         slicer.util.updateVolumeFromArray(tempPEVolumeNode, PEmapTemplate)
         outputMapsSequenceNode.SetDataNodeAtValue(tempPEVolumeNode, "PE")
+        # Delete tempPEVolumeNode asap:
+        slicer.mrmlScene.RemoveNode(tempPEVolumeNode)
+
         
         SER = ( St1_minus_St0 / ( Stn_minus_St0 + self.EPSILON ) ) 
         SER[SER < 0.0] = 0.0
@@ -1525,25 +1532,18 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         FTVmapVolume = np.where(SERmap > 0, 1.0, 0.0)
         print(f'Size FTV Volume: {FTVmapVolume.shape}')
         ftvLabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "FTV label")
-        # ftvSegmentationAuxVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "FTV segmentation")
         slicer.util.updateVolumeFromArray(tempSERVolumeNode, FTVmapVolume)
-        # volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, ftvLabelMapVolumeNode, tempSERVolumeNode)
         FTVsegmentName = 'FTV_Total'
         maskVolumeSegmentationNode.GetSegmentation().AddEmptySegment(FTVsegmentName)
-        # ftvSegmentationAuxVolumeNode.GetSegmentation().AddEmptySegment(FTVsegmentName)
         FTVsegmentID = vtk.vtkStringArray()
         FTVsegmentID.InsertNextValue(FTVsegmentName)
-        # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode, FTVsegmentID)       
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(ftvLabelMapVolumeNode, maskVolumeSegmentationNode, FTVsegmentID)
         slicer.mrmlScene.RemoveNode(ftvLabelMapVolumeNode)
-        # FTVsegmentStats = self.getStatsFromMask(ftvSegmentationAuxVolumeNode, 
-        #                                         ftvSegmentationAuxVolumeNode.GetSegmentation().GetSegmentIDs()[0])
         FTVsegmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, 
                                                 FTVsegmentName)
         maskVolumeSegmentationNode.RemoveSegment(FTVsegmentName)
-        # slicer.mrmlScene.RemoveNode(ftvSegmentationAuxVolumeNode)
-        
+        slicer.mrmlScene.RemoveNode(tempSERVolumeNode)
 
         # JU - This operates over the Selected ROI (e.g. Tumour Tissue)
         uptake_ti = 100 * St_minus_St0 / (St0 + self.EPSILON)
@@ -1644,8 +1644,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(outputLabelMapVolumeNode)
         # Finally, remove the temporary nodes (it should be wrapped into a try/except/finally statement to ensure it always get deleted)
         slicer.mrmlScene.RemoveNode(tempReferenceVolumeNode)
-        slicer.mrmlScene.RemoveNode(tempPEVolumeNode)
-        slicer.mrmlScene.RemoveNode(tempSERVolumeNode)
         
         
 
