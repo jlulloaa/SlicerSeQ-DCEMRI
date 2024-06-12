@@ -22,6 +22,7 @@ from slicer import qMRMLSegmentEditorWidget, qMRMLSegmentSelectorWidget
 
 import numpy as np
 from scipy import signal
+import pydicom as pydcm
 # import cv2
 #
 # quantification
@@ -261,7 +262,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         
         # JU - To ensure the columns name are consisten between TICTable and TICplot, I define them here:
-        self.TICTableRowNames = ["Timepoint", "PE (%)", "Curve Fit"]
+        self.TICTableRowNames = ["Timepoint [min]", "PE (%)", "Curve Fit"]
         self.SummaryTableRowNames = ["Parameter", "Value", "Units"]
         self.SERTableRowNames = ["SER Range", "Volume (cm3)", "Distribution (%)"]
         # JU - Auxiliar nodes
@@ -269,6 +270,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.roiNode = None
         self.segmentID = None
         self.colourTableNode = None
+        self.timings = None
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -430,6 +432,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.input4DVolume:
             # Wrap all the actions into a function, so can be called from other places (e.g. from setParameterNode)
             self.configureView()
+            if self.timings is None:
+                self.timings = self.getAcquisitionTimings()
             # Initialise the index slider:
             # JU - DEBUG
             # print(f'Initialise parameter node: Setup Index Selector and Widget status')
@@ -565,6 +569,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
             if self._parameterNode.input4DVolume:
                 self.configureView()
+                if self.timings is None:
+                    self.timings = self.getAcquisitionTimings()
                 # print(f'Call within setParameterNode: Setup Index Selector and Widget status')
                 # # JU - Based on the sequence loaded, define the maximum index on the sliders
                 # self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
@@ -644,6 +650,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                int(self._parameterNode.preContrastIndex), #int(self.ui.indexSliderPreContrast.value), 
                                int(self._parameterNode.earlyPostContrastIndex), # int(self.ui.indexSliderEarlyPostContrast.value), 
                                int(self._parameterNode.latePostContrastIndex), #int(self.ui.indexSliderLatePostContrast.value), #)
+                               self.timings,
                                self._parameterNode.peakEnhancementThreshold,
                                self._parameterNode.backgroundThreshold,
                                self.segmentID) # self.ui.segmentListSelector.currentIndex,
@@ -729,7 +736,36 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self._checkCanApply()
         # JU - TODO: set viewer to the slice where the roi can be seen (decide if using the first, middle, last or any other relevant for the study)
     
-    # JU - User-defined functions
+    # From MultiVolumeImporterPlugin:
+    def tm2ms(self,tm):
+        
+        if len(tm)<6:
+            return 0
+
+        try:
+            hhmmss = tm.split('.')[0]
+        except:
+            hhmmss = tm
+
+        try:
+            ssfrac = float('0.'+tm.split('.')[1])
+        except:
+            ssfrac = 0.
+
+        if len(hhmmss)==6: # HHMMSS
+            sec = float(hhmmss[0:2])*60.*60.+float(hhmmss[2:4])*60.+float(hhmmss[4:6])
+        elif len(hhmmss)==4: # HHMM
+            sec = float(hhmmss[0:2])*60.*60.+float(hhmmss[2:4])*60.
+        elif len(hhmmss)==2: # HH
+            sec = float(hhmmss[0:2])*60.*60.
+        else:
+            raise OSError("Invalid DICOM time string: "+tm+" (failed to parse HHMMSS)")
+
+        sec = sec+ssfrac
+
+        return sec*1000.
+        
+    # JU - User-defined functions            
     def configureView(self):
         
         # print(f'Running configureView function')
@@ -743,6 +779,39 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # JU - If not done before, enable the segment editor
         self.ui.segmentEditorWidget.enabled = True
     
+    def getAcquisitionTimings(self):
+        if self._parameterNode.input4DVolume is not None:
+            # Get acquisition times from DICOM metadata (output in ms)
+            timeFrames = np.array(self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels").split(',')).astype(float)
+            print(f'Frame Labels: {timeFrames}')
+            # Get the bolus time relative to the start of the acquisition time
+            # Unfortunately, still have to read all the files to derive it
+            fileList = self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameFileList").split(',')
+            acquisitionTimes = []
+            bolusInjTimes = []
+            for ifile in fileList:
+                dcmMetaData = pydcm.dcmread(ifile, stop_before_pixels=True)
+                acquisitionTimes.append((dcmMetaData.AcquisitionTime))
+                if 'ContrastBolusStartTime' in dcmMetaData:
+                    bolusInjTimes.append((dcmMetaData.ContrastBolusStartTime))
+            
+            acquisitionTimeStart = sorted(acquisitionTimes)[0] # np.min(np.array(acquisitionTimes))
+            if bolusInjTimes:
+                bolusInjTimeList = np.unique(np.array(bolusInjTimes))[0]
+            else:
+                bolusInjTimeList = '0'
+
+            bolusInjTimeRelativeToStart = self.tm2ms(bolusInjTimeList) - self.tm2ms(acquisitionTimeStart)
+            timings = {'timepoints': timeFrames, 
+                       'injectionTime': bolusInjTimeRelativeToStart}
+            # print(f'Start Acquisition time: {acquisitionTimeStart}')
+            # print(f'Contrast Bolus time: {float(bolusInjTimeList)}')
+            # print(f'Contrast Bolus time relative to start: {bolusInjTimeRelativeToStart}')
+        else:
+            timings = None
+            
+        return timings
+            
     def setupBoxROI(self):
         self.roiNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLMarkupsROINode")
         if self._parameterNode is not None:
@@ -1230,6 +1299,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 preContrastIndex: int=0,
                 earlyPostContrastIndex: int=1,
                 latePostContrastIndex: int=-1,
+                timings: dict={},
                 PEthreshold: float=70.0,
                 BKGRNDthreshold: float=60.0,
                 segmentNodeID: str='', 
@@ -1259,8 +1329,11 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         # Allocate space in TICtable for the intensity values from the DCE array
         time_intensity_curve = np.full((nt, len(tableNodeDict['TICTable'][1])), np.nan)
-        # TODO: replace it by te actual sequence timings (e.g. trigger_times)
-        time_intensity_curve[:,0] = np.linspace(0, nt, nt, endpoint=False) 
+        if timings is not None:
+            print(f"Time Points: {timings['timepoints']}")
+            time_intensity_curve[:, 0] = timings['timepoints'] / (1000 * 60) # From ms to min
+        else:
+            time_intensity_curve[:,0] = np.linspace(0, nt, nt, endpoint=False) 
         
         # JU - Create temporary volumes to work with inside this function:
         # Pre-populate it with the info from the first input volume in the input sequence, so we get the same image orientation,dimensions, etc.:
@@ -1371,6 +1444,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         slicer.util.updateVolumeFromArray(tempPEVolumeNode, PEmapTemplate)
         outputMapsSequenceNode.SetDataNodeAtValue(tempPEVolumeNode, "PE")
+        # Delete tempPEVolumeNode asap:
+        slicer.mrmlScene.RemoveNode(tempPEVolumeNode)
+
         
         SER = ( St1_minus_St0 / ( Stn_minus_St0 + self.EPSILON ) ) 
         SER[SER < 0.0] = 0.0
@@ -1456,25 +1532,18 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         FTVmapVolume = np.where(SERmap > 0, 1.0, 0.0)
         print(f'Size FTV Volume: {FTVmapVolume.shape}')
         ftvLabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "FTV label")
-        # ftvSegmentationAuxVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "FTV segmentation")
         slicer.util.updateVolumeFromArray(tempSERVolumeNode, FTVmapVolume)
-        # volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, ftvLabelMapVolumeNode, tempSERVolumeNode)
         FTVsegmentName = 'FTV_Total'
         maskVolumeSegmentationNode.GetSegmentation().AddEmptySegment(FTVsegmentName)
-        # ftvSegmentationAuxVolumeNode.GetSegmentation().AddEmptySegment(FTVsegmentName)
         FTVsegmentID = vtk.vtkStringArray()
         FTVsegmentID.InsertNextValue(FTVsegmentName)
-        # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode, FTVsegmentID)       
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(ftvLabelMapVolumeNode, maskVolumeSegmentationNode, FTVsegmentID)
         slicer.mrmlScene.RemoveNode(ftvLabelMapVolumeNode)
-        # FTVsegmentStats = self.getStatsFromMask(ftvSegmentationAuxVolumeNode, 
-        #                                         ftvSegmentationAuxVolumeNode.GetSegmentation().GetSegmentIDs()[0])
         FTVsegmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, 
                                                 FTVsegmentName)
         maskVolumeSegmentationNode.RemoveSegment(FTVsegmentName)
-        # slicer.mrmlScene.RemoveNode(ftvSegmentationAuxVolumeNode)
-        
+        slicer.mrmlScene.RemoveNode(tempSERVolumeNode)
 
         # JU - This operates over the Selected ROI (e.g. Tumour Tissue)
         uptake_ti = 100 * St_minus_St0 / (St0 + self.EPSILON)
@@ -1505,9 +1574,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         unitsColumn = vtk.vtkStringArray()
         unitsColumn.SetName(tableNodeDict['SummaryTable'][1][2])
         # Add stats to Summary Table:
-        labelColumnContent = [maxROIDiameter['name'], 'Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', roiVolume['name']]
-        statsColumnContent = [maxROIDiameter['value'], max_ENH[seg_points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, roiVolume['value']]
-        unitsColumnContent = [maxROIDiameter['units'], '%', '%', '%', '[]', roiVolume['units']]
+        labelColumnContent = [maxROIDiameter['name'], 'Bolus injection time', 'Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', roiVolume['name']]
+        statsColumnContent = [maxROIDiameter['value'], timings['injectionTime']/(1000*60), max_ENH[seg_points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, roiVolume['value']]
+        unitsColumnContent = [maxROIDiameter['units'], 'min', '%', '%', '%', '[]', roiVolume['units']]
         for rows in zip(labelColumnContent, statsColumnContent, unitsColumnContent):
             labelColumn.InsertNextValue(rows[0])
             statsColumn.InsertNextValue(rows[1])
@@ -1575,8 +1644,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(outputLabelMapVolumeNode)
         # Finally, remove the temporary nodes (it should be wrapped into a try/except/finally statement to ensure it always get deleted)
         slicer.mrmlScene.RemoveNode(tempReferenceVolumeNode)
-        slicer.mrmlScene.RemoveNode(tempPEVolumeNode)
-        slicer.mrmlScene.RemoveNode(tempSERVolumeNode)
         
         
 
