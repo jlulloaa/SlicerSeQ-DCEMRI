@@ -12,18 +12,21 @@ from slicer.util import VTKObservationMixin
 from slicer.parameterNodeWrapper import (
     parameterNodeWrapper,
     WithinRange,
-    # parameterPack,
+    # Label,
+    parameterPack,
 )
 
 from slicer import vtkMRMLScalarVolumeNode, vtkMRMLMarkupsROINode, vtkMRMLLabelMapVolumeNode
 from slicer import vtkMRMLSequenceNode, vtkMRMLSegmentationNode, vtkMRMLTableNode
-from slicer import qMRMLSegmentEditorWidget, qMRMLSegmentSelectorWidget
+from slicer import qMRMLSegmentEditorWidget, qMRMLSegmentSelectorWidget, vtkMRMLSequenceBrowserNode
 # from slicer import vtkMRMLPlotSeriesNode, vtkMRMLPlotChartNode
 
 import numpy as np
 from scipy import signal
 import pydicom as pydcm
-# import cv2
+
+import time
+
 #
 # quantification
 #
@@ -38,7 +41,7 @@ class quantification(ScriptedLoadableModule):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = _("Parametric DCE-MRI")
         # TODO: set categories (folders where the module shows up in the module selector)
-        self.parent.categories = [translate("qSlicerAbstractCoreModule", "Quantification")]
+        self.parent.categories = [translate("qSlicerAbstractCoreModule", "Development")] # Quantification")]
         self.parent.dependencies = ["SequenceRegistration"]  # TODO: add here list of module names that this module requires
         self.parent.contributors = ["Jose L. Ulloa (ISANDEX LTD.), Muhammad Qadir (Austin Health)"] 
         # TODO: update with short description of the module and a link to online module documentation
@@ -108,6 +111,36 @@ This work was (partially) funded by… (grant Name and Number).
 #     )
 
 
+@parameterPack
+class relevantDCEindices:
+    
+  preContrast: Annotated[float, WithinRange(0.0, 10.0)] = 0.0
+  earlyPostContrast: Annotated[float, WithinRange(0.0, 10.0)] = 0.0
+  latePostContrast: Annotated[float, WithinRange(0.0, 10.0)] = 0.0
+
+  
+  def setDefault(self, maxIndex=0):
+
+      self.preContrast = 0
+      self.earlyPostContrast = 1
+      self.latePostContrast = maxIndex-1
+      
+
+@parameterPack
+class timeLabelDCEindices:
+    
+    preContrastTimeLabel: str=""
+    earlyPostContrastTimeLabel: str=""
+    latePostContrastTimeLabel: str=""
+
+
+@parameterPack
+class volumeSubtractionIndices:
+    
+  minuend: Annotated[int, WithinRange(0, 10)] = 1
+  subtrahend: Annotated[int, WithinRange(0, 10)] = 0
+
+
 #
 # quantificationParameterNode
 #
@@ -134,25 +167,23 @@ class quantificationParameterNode:
     # # Check this for any update: https://github.com/Slicer/Slicer/issues/7308
     # segmentSelectorWidgetParam: qMRMLSegmentSelectorWidget
     # segmentEditorWidgetParam: qMRMLSegmentEditorWidget
-    # tableTICNode : vtkMRMLTableNode
+    # tableTICNode: vtkMRMLTableNode
     # plotTICNode: vtkMRMLPlotSeriesNode
     # plotChartTICNode: vtkMRMLPlotChartNode
 
+    # Using ParameterPack
     # JU - Controllers for the analysis and display
-    preContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices
-    earlyPostContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices
-    latePostContrastIndex: Annotated[float, WithinRange(0.0, 100.0)] = 0.0 #relevantDCEindices\
-
-    peakEnhancementThreshold: Annotated[float, WithinRange(0.0, 100.0)] = 80.0
+    indicesDCE: relevantDCEindices
+    timingsDCE: timeLabelDCEindices
+    
+    peakEnhancementThreshold: Annotated[float, WithinRange(0.0, 250.0)] = 70.0
     backgroundThreshold: Annotated[float, WithinRange(0.0, 100.0)] = 60.0
+    signalEnhancementRatioThreshold: Annotated[float, WithinRange(0.0, 2.25)] = 1.4
     
-    # JU - controllers to display volume subtraction 
-    minuendIndex: Annotated[int, WithinRange(0, 10)] = 0
-    subtrahendIndex: Annotated[int, WithinRange(0, 10)] = 1
+    # JU - controllers to display volume subtraction
+    subtractIndices: volumeSubtractionIndices
     
-    # # JU - Simple Checkboxes to control layout view:
-    defaultLayoutViewToggle:  bool = True
-    renderingLayoutViewToggle:  bool = False
+    # # JU - Simple Checkboxes to control layers visibility:
     markupROIVisibilityToggle:  bool = True
     segmentMaskVisibilityToggle:  bool = True
     
@@ -167,8 +198,10 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
+
     def __init__(self, parent=None) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
+        
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
@@ -256,15 +289,18 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.TICTableRowNames = ["Timepoint [min]", "PE (%)", "Linear Fit"]
         self.SummaryTableRowNames = ["Parameter", "Value", "Units"]
         self.SERTableRowNames = ["SER Range", "Volume (cm3)", "Distribution (%)"]
-        # JU - Auxiliar nodes
+        # JU - Auxiliar nodes and variables
         self.currentVolume = None
+        self.subtractVolume = None
         self.roiNode = None
         self.segmentID = None
         self.colourTableNode = None
-        self.timings = None
+        self.timeFrames = None
+
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
+        
         ScriptedLoadableModuleWidget.setup(self)
 
         # Load widget from .ui file (created by Qt Designer).
@@ -272,49 +308,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         uiWidget = slicer.util.loadUI(self.resourcePath("UI/quantification.ui"))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
-        
-        # # JU - Create segment editor to get access to effects
-        # # JU - To show segment editor widget (useful for debugging): segmentEditorWidget.show()
-        self.segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
-        slicer.mrmlScene.AddNode(self.segmentEditorNode)
-        self.ui.segmentEditorWidget.enabled = False
-        self.ui.segmentEditorWidget.setMRMLSegmentEditorNode(self.segmentEditorNode)
-        self.ui.segmentEditorWidget.setSegmentationNode(None)
-        self.ui.segmentEditorWidget.setSourceVolumeNode(None) # self.currentVolume)
-        # JU - Because this widget is not yet supported by the parameters node wrapper, 
-        #     the connection to other widgets must be done manually:
-        self.ui.segmentEditorWidget.segmentationNodeChanged.connect(self.onSegmentChangeSegmentEditorNode)
-        # JU - The same has to be done the other way round, to communicate between inputMaskVolume node to the segmentEditorWidget:
-        self.ui.inputMaskSelector.currentNodeChanged.connect(self.onNodeChangeInputMaskSelectorNode)
-        # JU - Add a connection to monitor changes in the inputSelector to let segment editor widget knows when to get activated
-        self.ui.inputSelector.currentNodeChanged.connect(self.onSequenceChangeInputSelectorNode)
-        # JU - This connection manages the visibility of the segment mask
-        self.ui.segmentSelectorWidget.currentSegmentChanged.connect(self.updateSelectedSegmentMask)
-        
-        # JU - Output table selector - 
-        # TODO: Create a sequence containing each table, that way we could add more tables on the fly
-        self.outputTICTableSelector = slicer.qMRMLNodeComboBox()
-        self.outputTICTableSelector.noneDisplay = _("Create new table")
-        self.outputTICTableSelector.setMRMLScene(slicer.mrmlScene)
-        self.outputTICTableSelector.nodeTypes = ["vtkMRMLTableNode"]
-        self.outputTICTableSelector.enabled = False
-        self.outputTICTableSelector.addEnabled = False
-        self.outputTICTableSelector.selectNodeUponCreation = True
-        self.outputTICTableSelector.renameEnabled = False
-        self.outputTICTableSelector.removeEnabled = False
-        self.outputTICTableSelector.noneEnabled = False
-        self.outputTICTableSelector.setToolTip(_("Select a Table"))
-        self.outputTICTableSelector.setCurrentNode(None)
-        # use insertRow to append the new element into a specific row (i.e. FormLayout.insertRow(position, Text, Table))
-        # self.ui.outputsFormLayout.addRow(_("Output tables:"), self.outputTICTableSelector)
-        # self.ui.parametersGridLayout.addItem(2, _("Output tables:"), self.outputTICTableSelector)
-        self.ui.outputGridLayout.addWidget(self.outputTICTableSelector, 5, 1, 1)
-        
-        
-        # JU - Initialise plot series and chart nodes:
-        # self.plotSeriesNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLPlotSeriesNode")
-        # self.plotChartNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLPlotChartNode")
-        
+                
         # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
         # "setMRMLScene(vtkMRMLScene*)" slot.
@@ -324,6 +318,30 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # in batch mode, without a graphical user interface.
         self.logic = quantificationLogic()
         
+        # # JU - Create segment editor to get access to effects
+        # # JU - To show segment editor widget (useful for debugging): segmentEditorWidget.show()
+        self.segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
+        slicer.mrmlScene.AddNode(self.segmentEditorNode)
+        self.ui.segmentEditorWidget.enabled = False
+        self.ui.segmentEditorWidget.setMRMLSegmentEditorNode(self.segmentEditorNode)
+             
+        # JU - Output table selector - 
+        # TODO: Create a sequence containing each table, that way we could add more tables on the fly
+        self.outputTableSelector = slicer.qMRMLNodeComboBox()
+        self.outputTableSelector.noneDisplay = _("Create new table")
+        self.outputTableSelector.setMRMLScene(slicer.mrmlScene)
+        self.outputTableSelector.nodeTypes = ["vtkMRMLTableNode"]
+        self.outputTableSelector.enabled = False
+        self.outputTableSelector.addEnabled = False
+        self.outputTableSelector.selectNodeUponCreation = True
+        self.outputTableSelector.renameEnabled = False
+        self.outputTableSelector.removeEnabled = False
+        self.outputTableSelector.noneEnabled = False
+        self.outputTableSelector.setToolTip(_("Select a Table"))
+        self.outputTableSelector.setCurrentNode(None)
+        # use insertRow to append the new element into a specific row (e.g. FormLayout.insertRow(position, Text, Table))
+        # or a more general way by using addWidget:
+        self.ui.outputGridLayout.addWidget(self.outputTableSelector, 4, 1, 1)
         
         # JU - Initialise colourmap for SER values. 
         # Has to move it away from the init section to after creating the quantificationLogic object, 
@@ -331,187 +349,202 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # TODO: May be later on we can add it as part of the configurable parameters in the GUI
         self.ser_segment_labels = self.logic.getSERColourMapDict()
 
-        # Connections
-        # JU - Here there are only the connections that aren't made automatically by the Parameter node wrapper
-        # JU - Any change in the selected index defining the DCE timepoints of interest, 
-        # will be reflected as a change in the visualisation:
+        # Connections - Here there are the connections that aren't made automatically by the Parameter node wrapper
+        # JU - Because segmentEditor and Selector widgets are not yet supported by the parameters node wrapper, 
+        #     their connections to the scene have be done manually:
+        self.ui.segmentEditorWidget.segmentationNodeChanged.connect(self.onSegmentChangeSegmentEditorNode)
+        self.ui.inputMaskSelector.currentNodeChanged.connect(self.onNodeChangeInputMaskSelectorNode)
+        # JU - This connection manages the visibility of the segment mask
+        self.ui.segmentSelectorWidget.currentSegmentChanged.connect(self.updateSelectedSegmentMask)
+
+        # JU - This connection manages the visibility of the table
+        self.outputTableSelector.currentNodeChanged.connect(self.onSelectDisplayTable)
+        
+        # JU - Radio buttons are not avilable yet in the parameter node infraestructure
+        self.ui.defaultLayoutViewRadioButton.connect("clicked()", self.checkDefaultVieweLayout)
+        self.ui.renderingLayoutViewRadioButton.connect("clicked()", self.checkDefaultVieweLayout)
         
         # JU - Because I want to display/set the current view to whatever slider is moved, I thinks a connector is required:
         self.ui.indexSliderPreContrast.connect("valueChanged(double)", self.setCurrentVolumeFromIndex)
         self.ui.indexSliderEarlyPostContrast.connect("valueChanged(double)", self.setCurrentVolumeFromIndex)
         self.ui.indexSliderLatePostContrast.connect("valueChanged(double)", self.setCurrentVolumeFromIndex)
 
-        # JU - Connect the output table to ensure it gets updated whenever the Apply buttons is pressed:
-        # TODO: Delete if no longer needed
-        # self.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onNodeSelectionChanged)
-
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
 
-        # Buttons
+        # Buttons have to be connected manually, because they are controlled manually by the user:
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.sequenceRegistrationButton.connect("clicked(bool)", self.goToSequenceRegistration)
-        self.ui.displaySubtractionButton.connect("clicked(bool)", self.displaySubtractionVolumes)
+        self.ui.displaySubtractionButton.connect("clicked(bool)", self.onDisplaySubtractionVolumes)
+        self.ui.resetSegmentListButton.connect("clicked(bool)", self.onResetSegmentList)
         
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
+
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
+        
         self.removeObservers()
+
 
     def enter(self) -> None:
         """Called each time the user opens this module."""
+        
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
 
+
     def exit(self) -> None:
         """Called each time the user opens a different module."""
+        
         # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
         if self._parameterNode:
             self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
             self._parameterNodeGuiTag = None
             self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
 
+
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
+        
         # Parameter node will be reset, do not use it anymore
         self.setParameterNode(None)
 
+
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
+        
         # If this module is shown while the scene is closed then recreate a new parameter node immediately
         if self.parent.isEntered:
             self.initializeParameterNode()
 
+
     def initializeParameterNode(self) -> None:
         """Ensure parameter node exists and observed."""
+        
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
-
+        logging.debug(f'(initializeParameterNode) Initialise ParameterNode. It runs after setup and everytime the module is (re-)loaded')
+        logging.debug(f'(initializeParameterNode) First thing is to Set the ParameterNode (setParameterNode)...')
         self.setParameterNode(self.logic.getParameterNode())
+        logging.debug(f'(initializeParameterNode) After Setting up parameter Node, move to initialise')
+        logging.debug(f'(initializeParameterNode) If nothing done in the setup, it means the parameterNode is not yet defined.')
 
         # Select default input nodes if nothing is selected yet to save a few clicks for the user
         if not self._parameterNode.input4DVolume:
+            logging.debug(f'(initializeParameterNode) There is no Input4DVolume - Creating one...')
             firstInputSequenceNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSequenceNode")
+
             if firstInputSequenceNode:
                 self._parameterNode.input4DVolume = firstInputSequenceNode
-                # self.inputSeqBrowser = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSequenceBrowserNode")
-                # self.inputSeqBrowser.SetAndObserveMasterSequenceNodeID(self._parameterNode.input4DVolume.GetID())
 
-        # JU 12/06/2024 - This should happen only if input4D volume exist
+        # JU 12/06/2024 - The following should happen only if input4D volume exist
         # Initialise the output sequence that'll store the output maps, but only if the input sequence has been defined:
-        if (not self._parameterNode.outputSequenceMaps) & (self._parameterNode.input4DVolume is not None):
-            self._parameterNode.outputSequenceMaps = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSequenceNode", "OutputSequenceNode")
-            # Set the index to be maps names:
-            self._parameterNode.outputSequenceMaps.SetIndexName("Maps")
-            self._parameterNode.outputSequenceMaps.SetIndexType(1)  # 0: Numeric; 1: Text
-            self._parameterNode.outputSequenceMaps.SetIndexUnit("")
-            self.outputSeqBrowser = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSequenceBrowserNode", "OutputSequenceBrowserNode")
-            self.outputSeqBrowser.SetAndObserveMasterSequenceNodeID(self._parameterNode.outputSequenceMaps.GetID())
-            # JU - Might not need outputVolume
-            # if self.outputVolume is None:
-            #     print(f'Output Volume')
-            #     # If not done before, initialise the output Volume Node with the first volume from the input sequence, so the coordinates are the same
-            #     self.outputVolume = slicer.modules.volumes.logic().CloneVolume(self._parameterNode.input4DVolume.GetNthDataNode(0),
-            #                                                                    "Output PRM")
-            #     self._parameterNode.outputSequenceMaps.SetDataNodeAtValue(self.outputVolume, "0")
 
-        # JU - The previous code makes available the input4DVolume node, otherwise, it still be None
-        # Set up the index selector, if there is something in input4DVolume:
         if self._parameterNode.input4DVolume:
-            # Wrap all the actions into a function, so can be called from other places (e.g. from setParameterNode)
-            self.configureView()
-            if self.timings is None:
-                self.timings = self.getAcquisitionTimings()
-            # Initialise the index slider:
-            # JU - DEBUG
-            # print(f'Initialise parameter node: Setup Index Selector and Widget status')
-            # self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
-            # # Everytime the module is reloaded, set the selected node to the early post-contrast index
-            # self.setCurrentVolumeFromIndex(self._parameterNode.earlyPostContrastIndex)
-            # self.ui.parametersCollapsibleButton.enabled=True
-            # self.ui.segmentEditorWidget.enabled = True
+            logging.debug(f'(initializeParameterNode) Input4DVolume is not null - setting up default position')
+            self._parameterNode.indicesDCE.setDefault(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
+            self.setupBoxROI()
+
+            if not self._parameterNode.outputSequenceMaps:
+                logging.debug(f'(initializeParameterNode) outputSequenceMaps does not exist, creating one...')
+                self._parameterNode.outputSequenceMaps = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSequenceNode", "OutputSequenceNode")
+                # Set the index to be maps names:
+                self._parameterNode.outputSequenceMaps.SetIndexName("Maps")
+                self._parameterNode.outputSequenceMaps.SetIndexType(1)  # 0: Numeric; 1: Text
+                self._parameterNode.outputSequenceMaps.SetIndexUnit("")
+                self.outputSeqBrowser = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSequenceBrowserNode", "OutputSequenceBrowserNode")
+                self.outputSeqBrowser.SetAndObserveMasterSequenceNodeID(self._parameterNode.outputSequenceMaps.GetID())
 
             # # Select default input nodes if nothing is selected yet to save a few clicks for the user
             if not self._parameterNode.inputMaskVolume:
                 firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSegmentationNode")
+                
                 if firstVolumeNode:
                     self._parameterNode.inputMaskVolume = firstVolumeNode
+                
                 elif self._parameterNode.input4DVolume:
                     self._parameterNode.inputMaskVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "Segmentation Mask")
-                    # There are no segmentation masks available, so let's create one by default. It'll be attached to the segment editor:
-                    # self.ui.segmentEditorWidget.setSegmentationNode(slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", "Segmentation Mask"))
-                    # But keeps the selector disabled until the segmentation has a label map
-                    # self.ui.inputMaskSelector.enabled = False
-            #         # And enable the connection with the segment editor to create a label map:
-            #         # self.segmentationListSelector.enabled = True
-            # JU - Attach a segmentation mask to the segment editor. I think this will remove the warning message when adding the source volume before the mask
-            self.ui.segmentEditorWidget.setSegmentationNode(self._parameterNode.inputMaskVolume)
+
             # Now that the segmentation mask has been created, add a default segmentation to initialise it:
             if self._parameterNode.inputMaskVolume:
                 # Get the number of segmentations attached to the segmentation node:
                 segmentations = self._parameterNode.inputMaskVolume.GetSegmentation()
+                
                 if segmentations.GetNumberOfSegments() < 1:
                     # Create a new segmentation and attach it to the inputMaskVolume node:
                     segmentations.AddEmptySegment()
+                    
+                self.ui.segmentEditorWidget.setSegmentationNode(self._parameterNode.inputMaskVolume)
+                self.ui.segmentEditorWidget.setSourceVolumeNode(self.currentVolume) # self.currentVolume)
+                
+                self.segmentID = self.ui.segmentSelectorWidget.currentSegmentID()
                 
             # # Define a default output Label Map:
             if not self._parameterNode.outputLabelMap:
                 firstOutputLabelMap = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLLabelMapVolumeNode")
+
                 if firstOutputLabelMap:
                     self._parameterNode.outputLabelMap = firstOutputLabelMap
+
                 else:
-                # elif self._parameterNode.input4DVolume:
                     # There are no output label map available, so create one by default:
                     self._parameterNode.outputLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "SER Label Map")
+
             # Create a default display node, so I can associate the colour table:
             self._parameterNode.outputLabelMap.CreateDefaultDisplayNodes()
-            # Select default output nodes if nothing is selected yet to save a few clicks for the user
-            # if not self._parameterNode.outputVolume:
-            #     firstOutputVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
-            #     if firstOutputVolumeNode:
-            #         self._parameterNode.outputVolume = firstOutputVolumeNode
-            # print(f'Colour Table: {self.colourTableNode}')
+
             ser_labels_colour_table = slicer.mrmlScene.GetNodesByName("SER_labels")
             if (self.colourTableNode is None):
+
                 # colourTableNode does not exist, let see whether the SER_labels colour table already exist
                 if ser_labels_colour_table.GetNumberOfItems() > 0:
                     # Then assign the existing table:
                     self.colourTableNode = ser_labels_colour_table.GetItemAsObject(0)
+
                 else:
-                    print(f'Creates new colour table node...')
+                    logging.debug(f'Creates new colour table node...')
                     self.colourTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode", "SER_labels")
+
             self.colourTableNode.SetTypeToUser()
+
             # make the color table selectable in the GUI outside Colors module
             self.colourTableNode.HideFromEditorsOff()
             self.setupColourTable()
+
             # # Associate the colour table with the label map --> Pay attention to the use cases, because there is an error at some point (not yet clear when though)
             self._parameterNode.outputLabelMap.GetDisplayNode().SetAndObserveColorNodeID(self.colourTableNode.GetID())            
 
             # Select default plot and tables nodes, to avoid creating new ones:
-            if not self.outputTICTableSelector.currentNode():
+            if not self.outputTableSelector.currentNode():
                 self.TICTableNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLTableNode")
                 self.SummaryTableNode = slicer.mrmlScene.GetNthNodeByClass(1, "vtkMRMLTableNode")
                 self.SERDistributionTableNode = slicer.mrmlScene.GetNthNodeByClass(2, "vtkMRMLTableNode")
+
                 if not self.TICTableNode:
                     self.TICTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", "TIC Table")
+
                 # TODO: Check how to assign multiple tables to selector
                 if not self.SummaryTableNode:
                     self.SummaryTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", "Summary Table")
+
                 if not self.SERDistributionTableNode:
                     self.SERDistributionTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", "SER Table")
-                self.outputTICTableSelector.setCurrentNode(self.SERDistributionTableNode)
 
-            # if not self.plotSeriesNode:
+                self.outputTableSelector.setCurrentNode(self.SERDistributionTableNode)
+
             numberOfPlotSeriesNode = slicer.mrmlScene.GetNodesByClass("vtkMRMLPlotSeriesNode").GetNumberOfItems()
+
             if numberOfPlotSeriesNode == 0:
                 firstPlotSeriesNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotSeriesNode", "TIC plot")
                 secondPlotSeriesNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotSeriesNode", "Linear Fit")
+
             elif numberOfPlotSeriesNode == 1:
                 firstPlotSeriesNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLPlotSeriesNode")
                 secondPlotSeriesNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotSeriesNode", "Linear Fit")
+
             else:
                 firstPlotSeriesNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLPlotSeriesNode")
                 secondPlotSeriesNode = slicer.mrmlScene.GetNthNodeByClass(1, "vtkMRMLPlotSeriesNode")
@@ -522,44 +555,67 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.plotCurveFitNode.SetAndObserveTableNodeID(self.TICTableNode.GetID())
 
             firstPlotChartNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLPlotChartNode")
+
             if not firstPlotChartNode:
                 firstPlotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode", "TIC chart")
+
             self.plotChartNode = firstPlotChartNode
+            # Ensure there is no previous charts in the node (to avoid multiple legends appearing when re-loading):
+            self.plotChartNode.RemoveAllPlotSeriesNodeIDs()
+                    
+            # self.plotChartNode.SetAndObservePlotSeriesNodeID(self.plotSeriesNode.GetID())
+            # self.plotChartNode.SetAndObservePlotSeriesNodeID(self.plotCurveFitNode.GetID())
             self.plotChartNode.AddAndObservePlotSeriesNodeID(self.plotSeriesNode.GetID())
             self.plotChartNode.AddAndObservePlotSeriesNodeID(self.plotCurveFitNode.GetID())
             
             # Finally, (re-)configure the plot window
-            self.configurePlotWindow()
+            self.configurePlotSeriesNode()
+
+        logging.debug(f'(initializeParameterNode) End of initialisation')
+     
      
     def setParameterNode(self, inputParameterNode: Optional[quantificationParameterNode]) -> None:
         """
         Set and observe parameter node.
         Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
         """
-        # JU - DEBUGMODE
-        print('setParameterNode - Start')
+        logging.debug(f'(setParameterNode) Running setParameterNode. ')
+        logging.debug(f'(setParameterNode) If self._parameterNode is None, it will set it up from the quantificationParameterNode class')
+
         if self._parameterNode:
-            # JU - DEBUGMODE
-            # print('Parameter Node is not null. Disconnecting GUI')
             self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-            print(f'Setting up parameters, calling removeObserver...')
+            logging.debug(f'(setParameterNode) self._parameterNode is not null. Disconnecting the GUI and removing the Observer...')
+
             self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-            print(f'Setting up parameters, called removeObserver...')
-        # JU - DEBUGMODE
-        # print('Setting the parameter Node to input Parameter node')
+            logging.debug(f'(setParameterNode) Observer removed')
+
+        logging.debug('(setParameterNode) Setting the parameter Node to input Parameter node. It will force the parameterNode to be defined')
         self._parameterNode = inputParameterNode
+
         if self._parameterNode:
-            # print('Parameter Node is not null. Assigning a Node GUI Tag')
+            logging.debug('(setParameterNode) Parameter Node is not null. Assigning a Node GUI Tag')
             # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
             # ui element that needs connection.
             self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
             
             if self._parameterNode.input4DVolume:
-                self.configureView()
+                logging.debug(f'(setParameterNode) input4Dvolume is not null, so we are setting up eveyrthing else...')
+                # Setup default positions for the sliders: preContrast = 0; earlyPostContrast = 1; latePostContrast = N_Nodes
+                self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
+                self.setCurrentVolumeFromIndex(indexAsDouble=self._parameterNode.indicesDCE.earlyPostContrast)
+                # self.setupBoxROI()
+                # self.addObserver(self._parameterNode.input4DVolume, vtk.vtkCommand.ModifiedEvent, self._clickToDisplay)
+                # print(f'Setting up sequence dependencies...')
+                # self.onInputSelect()
+                # print(f'(End Step 3a)')
+                # self.inputSeqBrowser = slicer.modules.sequences.logic().GetFirstBrowserNodeForSequenceNode(self._parameterNode.input4DVolume)
+                # self.inputSeqBrowser = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLSequenceBrowserNode")
+                # self.inputSeqBrowser.SetAndObserveMasterSequenceNodeID(self._parameterNode.input4DVolume.GetID())
+                # self.configureView()
                 # if self.timings is None:
-                #     self.timings = self.getAcquisitionTimings()
-                #     self.setTimeValueOnSlider()
+                # self.timings = self.getAcquisitionTimings()
+                # self.setTimeValueOnSlider()
                 # print(f'Call within setParameterNode: Setup Index Selector and Widget status')
                 # # JU - Based on the sequence loaded, define the maximum index on the sliders
                 # self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
@@ -573,85 +629,104 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 
                 # # JU - If not done before, enable the segment editor
                 # self.ui.segmentEditorWidget.enabled = True
+                logging.debug(f'(setParameterNode) self.input4DVolume is not null, so we are calling the function _checkCanApply')
+                self._checkCanApply()
                 
-            self._checkCanApply()
+        logging.debug(f'(setParameterNode) All setup with the Parameter node. If parameterNode is empty, nothing was done here.')
+
 
     def _checkCanApply(self, caller=None, event=None) -> None:
-        if self._parameterNode:
-            if self._parameterNode.input4DVolume:
-                print(f'Updating...')
-                # They should be enabled at the initialisation, there is no need to check it everytime
-                self.ui.relevantIndicesCollapsibleButton.enabled = True
-                self.ui.displaySubtractionCollapsibleButton.enabled = True
-                # But, we need to check the maximum number of frames
-                self.onInputSelect()
-                # if self.timings is None:
-                self.timings = self.getAcquisitionTimings()
-                self.setTimeValueOnSlider()
-                
-                
-        if self._parameterNode and self._parameterNode.input4DVolume and self._parameterNode.inputMaskVolume: # and (self.segmentID is not None):
-            # Before anything else, check layout selectors:
-            self.checkDefaultVieweLayout()
-            self.checkVolumeRenderingVieweLayout()
-            self.toggleROIsView()
-            # self.displaySubtractionVolumes(self._parameterNode.minuendIndex, self._parameterNode.subtrahendIndex)
-            # JU - DEBUGMODE
-            # print("Compute output volume")
-            # if self._parameterNode.outputVolume is None:
-            # if (slicer.mrmlScene.GetNodesByName("Output PRM").GetNumberOfItems() < 1):
-            #     # If not done before, initialise the output Volume Node with the first volume from the input sequence, so the coordinates are the same
-            #     print(f'Creating another output map')
-            #     self.outputVolume = slicer.modules.volumes.logic().CloneVolume(self._parameterNode.input4DVolume.GetNthDataNode(0),
-            #                                                                    "Output PRM")
-            # TODO: update legend indicating the index corresponds to the Pre-Contrast phase
-            # self.setCurrentVolumeFromIndex()#self.ui.indexSliderPreContrast.value)
-            # self.ui.segmentEditorWidget.setSourceVolumeNode(self.currentVolume)
-            # self.setTimeValueOnSlider()
-            
-            # Setup Reference Box ROI
-            # # JU - Once tested, reposition this snipet in the right place 
-            # referenceSeed = vtk.vtkSphereSource()
-            
-            # referenceSeed.SetCenter(self.currentVolume.GetOrigin())
-            # referenceSeed.SetRadius(20)
-            # referenceSeed.Update()
-            # self._parameterNode.inputMaskVolume.AddSegmentFromClosedSurfaceRepresentation(referenceSeed.GetOutput(), "Reference", [0.0,0.0,1.0])
-            
-            self.ui.parametersCollapsibleButton.enabled=True
-            self.ui.applyButton.toolTip = _("Compute output volume")
-            self.ui.applyButton.enabled = True
-            # self.outputTICTableSelector.enabled = True
-            # self.ui.segmentEditorWidget.setSegmentationNode(self._parameterNode.inputMaskVolume)
+        logging.debug(f'(_checkCanApply) Check whether all required parameters are setup to enable the processing...')
+
+        if self._parameterNode and self._parameterNode.input4DVolume:
+            logging.debug(f'(_checkCanApply) everything seems ready to run the analysis, applying final setups...')
+            ## if self._parameterNode.input4DVolume:
+            logging.debug(f'(_checkCanApply) Volume Size: {self._parameterNode.input4DVolume.GetNumberOfDataNodes()}')
+            logging.debug(f'(_checkCanApply) Setting the maximum values for the index sliders - If the selector was changed, it will make sense, otherwise, it is redundant')
+            self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes()) #self._parameterNode.indicesDCE
+
+            logging.debug(f'(_checkCanApply) Setting the display to a valid volume from the selected sequence - If the selector was changed, it makes sense, otherwise it will not')
+            self.setCurrentVolumeFromIndex()
+            # self.onInputSelect()
+
+            logging.debug(f'(_checkCanApply) Ensure the index sliders and subtraction buttons are enabled...')
+            self.ui.relevantIndicesCollapsibleButton.enabled = True
+            self.ui.relevantIndicesCollapsibleButton.collapsed = False
+            self.ui.displaySubtractionCollapsibleButton.enabled = True
+            self.ui.displaySubtractionCollapsibleButton.collapsed = False
+            self.ui.displaySubtractionButton.enabled=True
+            self.ui.sequenceRegistrationButton.enabled = True
+            # Check the visibility of the ROI
+            self.toggleROIsView() # ===> Add an update to the ROI so it can reset when loading new data
+            # self.checkVolumeRenderingVieweLayout()
+            # But, we need to check the maximum number of frames
+            # self.onInputSelect()
+            # ## if self.timings is None:
+
+            logging.debug(f'(_checkCanApply) update the acquisition times from the data. As the previous lines, it the selector was changed, it will make sense, otherwise, it not needed...')
+            self.timings = self.getAcquisitionTimings()
+
+            logging.debug(f'(_checkCanApply) Update the timing beside each slider.')
+            self.setTimeValueOnSlider()
+
+            if self._parameterNode.inputMaskVolume:
+                logging.debug(f'(_checkCanApply) Last check to enable Apply button')
+                self.ui.parametersCollapsibleButton.enabled=True
+                self.ui.parametersCollapsibleButton.collapsed=False
+                self.ui.peakEnhancementThreshold.enabled = True
+                self.ui.signalEnhancementRatioThreshold.enabled = True
+                self.ui.backgroundThreshold.enabled = True
+                self.ui.segmentEditorCollapsibleButton.collapsed=False
+                self.ui.segmentEditorWidget.enabled = True
+                self.ui.outputsCollapsibleButton.enabled = True
+                self.ui.outputsCollapsibleButton.collapsed = False
+                self.outputTableSelector.enabled = True
+                self.ui.applyButton.toolTip = _("Compute FTV parameters")
+                self.ui.applyButton.enabled = True
+                self.ui.resetSegmentListButton.enabled = True
+                logging.debug(f'(_checkCanApply) end testing inside input4DVolume')
+
         else:
-            # JU - DEBUGMODE
-            # print('Nothing to do, will keep the button disabled...')
-            self.ui.applyButton.toolTip = _("Select input and mask volumes nodes")
+            logging.debug(f'(_checkCanApply) parameterNode and input4DVolume are not enabled yet, so nothing done...')
+            self.ui.relevantIndicesCollapsibleButton.enabled = False
+            self.ui.relevantIndicesCollapsibleButton.collapsed = False
+            self.ui.displaySubtractionCollapsibleButton.enabled = False
+            self.ui.displaySubtractionCollapsibleButton.collapsed = True
+            self.ui.displaySubtractionButton.enabled=False
+            self.ui.segmentEditorCollapsibleButton.collapsed=True
+            self.ui.parametersCollapsibleButton.enabled=False
+            self.ui.parametersCollapsibleButton.collapsed=True
+            self.ui.applyButton.toolTip = _("Select input sequence volume")
             self.ui.applyButton.enabled = False
+
+        logging.debug(f'(_checkCanApply) End of function')
+       
             
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
         with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
-            # Enable Table selection and update chart window:
-            # self.plotSeriesNode.SetName(self.ui.segmentListSelector.currentText)
-            self.update_plot_window()
+            # self.update_plot_window()
+            # Update timings including bolus time (if available from the DICOM metadata)
+            self.timings = self.getAcquisitionTimings(getBolus=True)
             # Compute output
             self.logic.process(self._parameterNode.input4DVolume, 
                                self._parameterNode.inputMaskVolume, 
                                self._parameterNode.outputSequenceMaps, 
-                            #    self._parameterNode.outputSequenceMaps.GetNthDataNode(0),
                                self._parameterNode.outputLabelMap,
                                self.roiNode,
                                {'TICTable': [self.TICTableNode, self.TICTableRowNames],
                                 'SummaryTable': [self.SummaryTableNode, self.SummaryTableRowNames],
-                                'SERSummaryTable': [self.SERDistributionTableNode, self.SERTableRowNames]}, #outputTICTableSelector.currentNode(),
-                               int(self._parameterNode.preContrastIndex), #int(self.ui.indexSliderPreContrast.value), 
-                               int(self._parameterNode.earlyPostContrastIndex), # int(self.ui.indexSliderEarlyPostContrast.value), 
-                               int(self._parameterNode.latePostContrastIndex), #int(self.ui.indexSliderLatePostContrast.value), #)
+                                'SERSummaryTable': [self.SERDistributionTableNode, self.SERTableRowNames]},
+                               int(self._parameterNode.indicesDCE.preContrast),
+                               int(self._parameterNode.indicesDCE.earlyPostContrast),
+                               int(self._parameterNode.indicesDCE.latePostContrast),
                                self.timings,
                                self._parameterNode.peakEnhancementThreshold,
+                               self._parameterNode.signalEnhancementRatioThreshold,
                                self._parameterNode.backgroundThreshold,
-                               self.segmentID) # self.ui.segmentListSelector.currentIndex,
+                               self.segmentID)
+            self.update_plot_window()
+            
             try:
                 # Set the X-range of the graph to be the even number closest to 125% of the maximum
                 xRange = np.array(self.TICTableNode.GetTable().GetColumn(0).GetFiniteRange())
@@ -659,42 +734,42 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 xLims = [xRange[0],  xMax + ( xMax % 2 )]
                 self.plotChartNode.XAxisRangeAutoOff()
                 self.plotChartNode.SetXAxisRange(xLims)
+                
             except:
-                print('Cannot set the limits in the X-axis')
-            # self.logic.updateViewer(volumeToDisplay=self._parameterNode.outputVolume)
-            # Compute inverted output (if needed)
-            # if self.ui.invertedOutputSelector.currentNode():
-            #     # If additional output volume is selected then result with inverted threshold is written there
-            #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-            #                        self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked, showResult=False)
-            # slicer.modules.plots.logic().ShowChartInLayout(self.plotChartNode)        
+                logging.error('Cannot set the limits in the X-axis')
+
 
     # JU - user-defined connnector functions
     def goToSequenceRegistration(self) -> None:
+        
         # Warn that it will move away from the module
         warnText = "This will take you to another module.\nTo come back, go to Modules -> Quantification -> Parameteric DCE-MRI"
-        # slicer.util.warningDisplay(warnText, windowTitle="WARNING")
         ok = slicer.util.confirmOkCancelDisplay(warnText, windowTitle="WARNING")
+        
         if ok:
             slicer.util.selectModule("SequenceRegistration")
 
+
     def checkDefaultVieweLayout(self) -> None:
-        if self._parameterNode.defaultLayoutViewToggle:
-            # Force the 3D renderingViewToggle to false:
+        
+        if self.ui.defaultLayoutViewRadioButton.checked:
             self.layoutManager.setLayout(self.customLayoutId)
-            self.ui.volumeRenderingViewToggle.setChecked(False)
-            
-    def checkVolumeRenderingVieweLayout(self) -> None:
-        if self._parameterNode.renderingLayoutViewToggle:
-            # Force the defaultLayoutViewToggle to false:
-            # self.ui.volumeRenderingViewToggle = False
-            self.layoutManager.setLayout(self.volumeRenderOnlyLayout)
-            self.ui.defaultViewToggle.setChecked(False)
         else:
-            self.ui.defaultViewToggle.setChecked(True)
+            self.layoutManager.setLayout(self.volumeRenderOnlyLayout)
+            
+                        
+    def checkVolumeRenderingVieweLayout(self) -> None:
+
+        if self._parameterNode.renderingLayoutViewToggle:
+            self.layoutManager.setLayout(self.volumeRenderOnlyLayout)
+        else:
             self.layoutManager.setLayout(self.customLayoutId)
+
+        self._parameterNode.defaultLayoutViewToggle = not self._parameterNode.renderingLayoutViewToggle
+       
             
     def toggleROIsView(self) -> None:
+        
         if self.roiNode:
             self.roiNode.SetDisplayVisibility(self._parameterNode.markupROIVisibilityToggle)
 
@@ -702,48 +777,57 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             maskDisplayNode = self._parameterNode.inputMaskVolume.GetDisplayNode()
             maskDisplayNode.SetSegmentVisibility(self.segmentID, self._parameterNode.segmentMaskVisibilityToggle) 
         
+    
     def onSegmentChangeSegmentEditorNode(self) -> None:
-        # print('Changed segment mask from segment editor node...')
+        
         self.ui.inputMaskSelector.setCurrentNode(self.ui.segmentEditorWidget.segmentationNode())
         
+    
     def onNodeChangeInputMaskSelectorNode(self) -> None:
-        # print('Changed input mask node...')
+        
         self.ui.segmentEditorWidget.setSegmentationNode(self.ui.inputMaskSelector.currentNode())
     
+    
     def onSequenceChangeInputSelectorNode(self) -> None:
-        print('Changed the main input selector node...')
-        # JU 12/06/2024 - It should only update the self.currentVolume
+
         if self._parameterNode is not None:
-            if self._parameterNode.input4DVolume is not None:
-                # self.onInputSelect()
-                self.setCurrentVolumeFromIndex(self._parameterNode.preContrastIndex)
-                if self.ui.segmentEditorWidget.segmentationNodeID() is not None:
-                    self.ui.segmentEditorWidget.setSourceVolumeNode(self.currentVolume)
-                # self.timings = self.getAcquisitionTimings()
-                # self.setTimeValueOnSlider()                
-        # self.ui.segmentEditorWidget.setSourceVolumeNode(self.currentVolume)
+            self._parameterNode.input4DVolume = self.ui.inputSelector.currentNode()
+            logging.debug('(onSequenceChangeInputSelectorNode) Changed the main input selector node...')
+            self.onInputSelect()
+            logging.debug(f'(onSequenceChangeInputSelectorNode) updating aquisition times...')
+            self.timings = self.getAcquisitionTimings()
+            logging.debug(f'(onSequenceChangeInputSelectorNode) done updating aquisition times...')
+
         
-    def onInputSelect(self) -> None:
+    def onInputSelect(self):
+        
+        logging.debug(f'Step 3a: ONINPUTSELECT, First Branch if INPUT4DVolume, run after (re-)loadind')
+
         if not self._parameterNode.input4DVolume: #self.ui.inputSelector.currentNode():
             # print('No nodes to use')
             numberOfDataNodes = 0
+            
         else:
             numberOfDataNodes = self._parameterNode.input4DVolume.GetNumberOfDataNodes() #self.ui.inputSelector.currentNode().GetNumberOfDataNodes()
-        print(f'Number of items in the sequence: {numberOfDataNodes}')
+
+        logging.debug(f'Number of items in the sequence: {numberOfDataNodes}')
         self.setMaxIndexSelector(numberOfDataNodes)
+        logging.debug(f'(End Step 3.1a)')
+    
     
     def updateSelectedSegmentMask(self) -> None:
+
         self.segmentID = self.ui.segmentSelectorWidget.currentSegmentID()
-        # print(f'update Selected Segment: {self.segmentID}')
+
         # # Set visibility for the selected segmentation label:
-        # TODO: apparently, if there is only one segmentation, it issues an error
+
         if self._parameterNode:
+            # self.segmentID = self.ui.segmentSelectorWidget.currentSegmentID()
             displayNode = self._parameterNode.inputMaskVolume.GetDisplayNode()
             displayNode.SetAllSegmentsVisibility(False) # Hide all segments
             displayNode.SetSegmentVisibility(self.segmentID, True)
-            # JU 12/06/2024: does the following goes inside the IF?
-            # self._checkCanApply()
         # JU - TODO: set viewer to the slice where the roi can be seen (decide if using the first, middle, last or any other relevant for the study)
+
     
     # From MultiVolumeImporterPlugin 
     # (https://github.com/fedorov/MultiVolumeImporter/blob/c8a37eb5e4f35b78ccc9287b298457a064c9d001/MultiVolumeImporterPlugin.py#L779)
@@ -775,60 +859,92 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         return sec*1000.
         
-    # JU - User-defined functions            
-    def configureView(self) -> None:
-        
-        # print(f'Running configureView function')
-        self.setMaxIndexSelector(self._parameterNode.input4DVolume.GetNumberOfDataNodes())
-        # Everytime the module is reloaded, set the selected node to the early post-contrast index
-        # self.setCurrentVolumeFromIndex(self._parameterNode.earlyPostContrastIndex)
-        self.ui.parametersCollapsibleButton.enabled=True
-        self.ui.segmentEditorWidget.enabled = True
-        # JU - Add the Reference BOX ROI to crop the analysis:
-        self.setupBoxROI()
-        # JU - If not done before, enable the segment editor
-        # self.ui.segmentEditorWidget.enabled = True
     
-    def getAcquisitionTimings(self):
+    def getAcquisitionTimings(self, getBolus=False):
+        
         if self._parameterNode.input4DVolume is not None:
-            # Get acquisition times from DICOM metadata (output in ms)
-            self.timeFrames = np.array(self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels").split(',')).astype(float)
-            print(f'Frame Labels: {self.timeFrames}')
-            # Get the bolus time relative to the start of the acquisition time
-            # Unfortunately, still have to read all the files to derive it
-            fileList = self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameFileList").split(',')
-            acquisitionTimes = []
-            bolusInjTimes = []
-            for ifile in fileList:
-                dcmMetaData = pydcm.dcmread(ifile, stop_before_pixels=True)
-                acquisitionTimes.append((dcmMetaData.AcquisitionTime))
-                if 'ContrastBolusStartTime' in dcmMetaData:
-                    bolusInjTimes.append((dcmMetaData.ContrastBolusStartTime))
             
-            acquisitionTimeStart = sorted(acquisitionTimes)[0] # np.min(np.array(acquisitionTimes))
-            if bolusInjTimes:
-                bolusInjTimeList = np.unique(np.array(bolusInjTimes))[0]
+            if self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels") is not None:
+                # Get acquisition times from DICOM metadata (output in ms)
+                self.timeFrames = np.array(self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels").split(',')).astype(float)
             else:
-                bolusInjTimeList = '0'
+                nt = self._parameterNode.input4DVolume.GetNumberOfDataNodes()
+                # normalise the time axis to nt = 1min = 60x10e3 [ms] to be consistent with the calculations  
+                self.timeFrames = np.linspace(0, nt*60.0*1.0e3, num=nt, endpoint=True)
 
-            bolusInjTimeRelativeToStart = self.tm2ms(bolusInjTimeList) - self.tm2ms(acquisitionTimeStart)
+            logging.debug(f'(getAcquisitionTimings) Frame Labels: {self.timeFrames}')
+            
+            if getBolus:
+                
+                # Identify Bolus injection time:
+                get_bolus_time_start = time.perf_counter()
+                
+                # Get the bolus time relative to the start of the acquisition time
+                # Unfortunately, still have to read all the files to derive it
+                fileList = []
+                acquisitionTimes = []
+                bolusInjTimes = []
+                
+                # Contrast Bolus Start Time is recorded in different Dicom attributes, 
+                # depending on the manufacturer and sequence, so far, the following are known:
+                # Philips - Dyn eThrive: (0018, 1042) ContrastBolusStartTime
+                contrastBolusAttribute = ['ContrastBolusStartTime']
+
+                if self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameFileList") is not None:
+                    fileList = self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameFileList").split(',')
+
+                for ifile in fileList:
+                    dcmMetaData = pydcm.dcmread(ifile, stop_before_pixels=True)
+                    acquisitionTimes.append((dcmMetaData.AcquisitionTime))
+                    for cb_attr in contrastBolusAttribute:
+                        if cb_attr in dcmMetaData:
+                            bolusInjTimes.append((dcmMetaData.ContrastBolusStartTime))
+                            break
+                        
+                if acquisitionTimes:
+                    acquisitionTimeStart = sorted(acquisitionTimes)[0]
+                else:
+                    acquisitionTimeStart = '0'
+
+                if bolusInjTimes:
+                    bolusInjTimeList = sorted(bolusInjTimes)[0]
+                    bolusInjTimeRelativeToStart = self.tm2ms(bolusInjTimeList) - self.tm2ms(acquisitionTimeStart)
+                else:
+                    bolusInjTimeList = '0'
+                    bolusInjTimeRelativeToStart = 0.0
+
+
+            else:
+                bolusInjTimeRelativeToStart = 0.0
+                
             timings = {'timepoints': self.timeFrames, 
                        'injectionTime': bolusInjTimeRelativeToStart}
-            # self.ui.latePostContrastTimeLabel.text = [self._parameterNode.preContrastIndex]
+            
         else:
             timings = None
+
+        get_bolus_time_end = time.perf_counter()
+        if getBolus :
+            print(f'(getAcquisitionTimings) Elapsed time to get bolus time: {get_bolus_time_end - get_bolus_time_start}')
             
         return timings
 
+
     def setTimeValueOnSlider(self) -> None:
-        
-        self.ui.labelTimePreContrast.text = f'{self.timeFrames[int(self._parameterNode.preContrastIndex)]/(1000*60):.1f}[min]'
-        self.ui.labelTimeEarlyPostContrast.text = f'{self.timeFrames[int(self._parameterNode.earlyPostContrastIndex)]/(1000*60):.1f}[min]'
-        self.ui.labelTimeLatePostContrast.text = f'{self.timeFrames[int(self._parameterNode.latePostContrastIndex)]/(1000*60):.1f}[min]'
+
+        logging.debug(f'(setTimeValueOnSider) Step 3b: SETTIMAVALUEONSLIDER, First Branch if INPUT4DVolume, run after (re-)loadind')
+        if self.timeFrames is not None:
+            self.ui.labelTimePreContrast.text = f'{self.timeFrames[int(self._parameterNode.indicesDCE.preContrast)]/(1000*60):.1f}[min]'
+            self.ui.labelTimeEarlyPostContrast.text = f'{self.timeFrames[int(self._parameterNode.indicesDCE.earlyPostContrast)]/(1000*60):.1f}[min]'
+            self.ui.labelTimeLatePostContrast.text = f'{self.timeFrames[int(self._parameterNode.indicesDCE.latePostContrast)]/(1000*60):.1f}[min]'
+
         
     def setupBoxROI(self) -> None:
+
         self.roiNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLMarkupsROINode")
+
         if self._parameterNode is not None:
+
             if (self.roiNode is None) & (self.currentVolume is not None):
                 # setup the ROI
                 self.roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "RefBox")
@@ -836,64 +952,73 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 # Fit the ROI to the volume on display:
                 self.logic.fitBoxROImarkupToVolume(self.currentVolume, self.roiNode)
                 # Set the initial dimensions to a fraction of the volume size
-                self.roiNode.SetRadiusXYZ(self.currentVolume.GetOrigin())
+                halfSize = tuple([dim/4.0 for dim in self.roiNode.GetSize()])
+                self.roiNode.SetSize(halfSize)
+                # self.roiNode.SetRadiusXYZ(self.currentVolume.GetOrigin())
                 new_roi_bounds = [0]*6
                 self.roiNode.GetBounds(new_roi_bounds)
-                print(f'bBox Coordinates: {self.roiNode.GetBounds(new_roi_bounds)}')
+                print(f'bBox Size: {self.roiNode.GetSize()}')
                 
                 # TODO: enable a checkbox to control BoxROI visibility
-                self.toggleROIsView()
+                # self.toggleROIsView()
                 # self.roiNode.SetDisplayVisibility(self._parameterNode.markupROIVisibilityToggle)
+
                 
     # JU - separate to refresh the index selctors everytime the module is loaded (not only when the input selector changes)
-    def setMaxIndexSelector(self, maxIndex) -> None:    
-        for sequenceItemSelectorWidget in [self.ui.indexSliderPreContrast, self.ui.indexSliderEarlyPostContrast, self.ui.indexSliderLatePostContrast]:
+    def setMaxIndexSelector(self, maxIndex) -> None:
+        
+        logging.debug(f'Step 3.1a: SETMAXINDEXSELECTOR, Sub-Call made by ONINPUTSELECT (Branch if INPUT4DVolume), run after (re-)loadind')
+        
+        for sequenceItemSelectorWidget in [self.ui.indexSliderPreContrast, self.ui.indexSliderEarlyPostContrast, self.ui.indexSliderLatePostContrast, self.ui.minuendIndexSelector, self.ui.subtrahendIndexSelector]:
+
             if maxIndex < 1:
                 sequenceItemSelectorWidget.maximum = 0
                 sequenceItemSelectorWidget.enabled = False
             else:
                 sequenceItemSelectorWidget.maximum = maxIndex-1
                 sequenceItemSelectorWidget.enabled = True
-
-        # self._parameterNode.preContrastIndex = 0
-        # self._parameterNode.earlyPostContrastIndex =  3# 1
-        # self._parameterNode.latePostContrastIndex = sequenceItemSelectorWidget.maximum
-        
-        for indexSubtractSelectorWidget in [self.ui.minuendIndexSelector, self.ui.subtrahendIndexSelector]:
-            indexSubtractSelectorWidget.enabled = sequenceItemSelectorWidget.enabled
-            indexSubtractSelectorWidget.maximum = sequenceItemSelectorWidget.maximum
-        # JU - 12/06/24: This should go somewhere else
-        # self._parameterNode.minuendIndex = 0
-        # self._parameterNode.subtrahendIndex = 1
+                    
         
         
     def setCurrentVolumeFromIndex(self, indexAsDouble=None) -> None:
+
         sequenceBrowserNode = self.logic.findBrowserForSequence(self._parameterNode.input4DVolume)
         # # JU - DEBUGMODE
-        print(f'Selected Sequence from browser is {sequenceBrowserNode.GetName()}')
+        logging.debug(f'Selected Sequence from browser is {sequenceBrowserNode.GetName()}')
+
         if indexAsDouble is not None:
             sequenceBrowserNode.SetSelectedItemNumber(int(indexAsDouble))
+
         # self.currentVolume = sequenceBrowserNode.GetProxyNode(self._parameterNode.input4DVolume) #self.ui.inputSelector.currentNode())
+        # JU TODO: can we replace this by an observers into a scalar node?
         self.currentVolume = sequenceBrowserNode.GetProxyNode(self.ui.inputSelector.currentNode())
-        # Update the sequence browser toolbar with the seqeuence selected in the input selector
+
+        # Update the sequence browser toolbar with the sequeence selected in the input selector
         slicer.modules.sequences.toolBar().setActiveBrowserNode(sequenceBrowserNode)        
+
         # # JU - This displays the selected volume in the viewer
         # # (https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#show-a-volume-in-slice-views)
         self.logic.updateViewer(self.currentVolume)
+
     
-    def displaySubtractionVolumes(self, minuendIndex=None, sustraendIndex=None) -> None: # requires at least four inputs: sequence Volume, minuend Volume index, sustraend Volume index and display Node:
+    def onDisplaySubtractionVolumes(self):#, minuendIndex=None, sustrahendIndex=None) -> None: # requires at least four inputs: sequence Volume, minuend Volume index, sustraend Volume index and display Node:
+
+        minuendIndex = self._parameterNode.subtractIndices.minuend
+        logging.debug(f'1.a) Minuend: {minuendIndex}')
+
+        sustrahendIndex = self._parameterNode.subtractIndices.subtrahend
+        logging.debug(f'2.a) Subtrahend: {sustrahendIndex}')
+            
         
-        if minuendIndex is None:
-            minuendIndex = self._parameterNode.minuendIndex
+        self.subtractVolume = self.logic.subtractVolumes(self._parameterNode.input4DVolume, minuendIndex, sustrahendIndex, self.subtractVolume)
+        self.logic.updateViewer(self.subtractVolume)
 
-        if sustraendIndex is None:
-            sustraendIndex = self._parameterNode.subtrahendIndex
-
-        self.logic.subtractVolumes(self._parameterNode.input4DVolume, minuendIndex, sustraendIndex, self.currentVolume)
-        # self.logic.updateViewer(self.currentVolume)
-
+    def onResetSegmentList(self):
+        self.logic.resetSegmentList(self._parameterNode.inputMaskVolume)
         
-    def configurePlotWindow(self) -> None:
+        
+    def configurePlotSeriesNode(self) -> None:
+        
         # print('Configuring Plot Series and Chart Window...')
         # Configure Plot Series:
         self.plotSeriesNode.SetXColumnName(self.TICTableRowNames[0])
@@ -909,7 +1034,13 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.plotCurveFitNode.SetLineStyle(slicer.vtkMRMLPlotSeriesNode.LineStyleSolid)
         self.plotCurveFitNode.SetMarkerStyle(slicer.vtkMRMLPlotSeriesNode.MarkerStyleNone)
         self.plotCurveFitNode.SetColor(0, 0, 0)
+        
+        # Configure Chart node
+        self.configurePlotChartNode()
 
+    
+    def configurePlotChartNode(self) -> None:
+        
         # Configure Plot Chart Window:
         self.plotChartNode.SetTitle("Time Intensity Curves")
         self.plotChartNode.SetXAxisTitle(self.TICTableRowNames[0])
@@ -920,38 +1051,47 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.plotChartNode.SetYAxisRangeAuto(True)
         
         # Assign Plot Series to Chart window:
-        plotWidget = self.layoutManager.plotWidget(0)
-        self.plotViewNode = plotWidget.mrmlPlotViewNode()
+        self.plotWidget = self.layoutManager.plotWidget(0)
+        self.plotViewNode = self.plotWidget.mrmlPlotViewNode()
         self.plotViewNode.SetPlotChartNodeID(self.plotChartNode.GetID())
-        
+    
+    
+    def onSelectDisplayTable(self):
+        self.logic.displayTable(self.outputTableSelector.currentNode())
+    
         
     def update_plot_window(self) -> None:
-        # enable TIC table:
-        self.outputTICTableSelector.enabled=True
-        self.ui.outputsCollapsibleButton.enabled=True
+        
         # table to display by default: 
         self.logic.displayTable(self.SERDistributionTableNode)
-        # It appears that by defining the layout, it is no longer needed to update the chart view
-        # TODO: Remove the following line once confirmed 
-        # self.logic.displayChart(self.plotChartNode)
+        # Ensure the outputTableSelector is back to the table on display:
+        self.outputTableSelector.setCurrentNode(self.SERDistributionTableNode)
+        
         # JU - update plot name according to the selected segment name:
+        print(f'(update_plot_window) SegmentID: {self.segmentID}')
         segmentations = self._parameterNode.inputMaskVolume.GetSegmentation()
         self.plotSeriesNode.SetName(segmentations.GetSegment(self.segmentID).GetName())
+        # remove any previous plots from the chart:
+        # self.plotChartNode.RemoveAllPlotSeriesNodeIDs()
+        print(f'(update_plot_window) updated plot window')
+
+        # (Re-)Configure Plot Chart window:
+        self.plotWidget.update()
+        # self.configurePlotChartNode()
+    
     
     def setupColourTable(self) -> None:
+
         nLabels = len(self.ser_segment_labels)
-        # print(f'Number of Labels: {nLabels}')
         self.colourTableNode.SetNumberOfColors(nLabels)
         self.colourTableNode.SetNamesInitialised(True) # prevent automatic color name generation
+
         for idx, (legend, [r,g,b,a]) in enumerate(self.ser_segment_labels.items()):
             success = self.colourTableNode.SetColor(idx, legend, r, g, b, a)
-            # if success:
-            #     print(f'Legend: {legend}. Well done!!')
-            # else:
-            #     print(f'Problem with Legend: {legend}')
-                         
-    def clickToDisplay() -> None:
-        print('hola')
+            if success:
+                logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
+
+
         
 
 #
@@ -982,8 +1122,10 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         self.LB_OPACITY = 0.0
         self.SERColourMapDictionary = None
         
+        
     def getParameterNode(self):
         return quantificationParameterNode(super().getParameterNode())
+
 
     # JU - User-defined functions
     def findBrowserForSequence(self, sequenceNode):
@@ -999,12 +1141,14 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 return browserNode
         return None
     
+    
     def getSERColourMapDict(self):
         
         if self.SERColourMapDictionary is None:
             self.setSERColourMapDict()
         
         return self.SERColourMapDictionary
+    
         
     def setSERColourMapDict(self):
 
@@ -1041,6 +1185,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         self.SERColourMapDictionary[legend] = serMapColours[-1]
         self.SERlegend.append(legend)
         
+        
     def getSegmentList(self, maskVolumeNode):
 
         nsegments = maskVolumeNode.GetSegmentation().GetNumberOfSegments()
@@ -1048,32 +1193,37 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         return segmentList
 
+
     def displayTable(self, currentTable):
         slicer.app.applicationLogic().GetSelectionNode().SetActiveTableID(currentTable.GetID())
         currentTable.SetUseColumnTitleAsColumnHeader(True)  # Make column titles visible (instead of column names)
         slicer.app.applicationLogic().PropagateTableSelection()
+    
             
-    def updateViewer(self, backgroundVolume=None, foregroundVolume=None, labelVolume=None, labelOpacity=None):
+    def updateViewer(self, backgroundVolume, foregroundVolume=None, labelVolume=None, labelOpacity=None):
         
         if foregroundVolume is not None:
             foregroundOpacity=self.FG_OPACITY
-            # TODO: Set the name of the background and foreground nodes in display
-            for channels in ["Red", "Yellow"]:
-                view = slicer.app.layoutManager().sliceWidget(channels).sliceView()
-                view.cornerAnnotation().SetText(vtk.vtkCornerAnnotation.UpperLeft,foregroundVolume.GetName())
+            cornerLabel = foregroundVolume.GetName()
         else:
             foregroundOpacity = None
+            cornerLabel = backgroundVolume.GetName()
         
         if labelVolume is not None:
             labelOpacity = self.LB_OPACITY
             colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
             colorLegendDisplayNode.ScalarVisibilityOn()
             colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
+        
+        for channels in ["Red", "Yellow"]:
+            view = slicer.app.layoutManager().sliceWidget(channels).sliceView()
+            view.cornerAnnotation().SetText(vtk.vtkCornerAnnotation.UpperLeft, cornerLabel)
                   
         slicer.util.setSliceViewerLayers(background=backgroundVolume, 
                                          foreground=foregroundVolume,
                                          foregroundOpacity=foregroundOpacity,
                                          label=labelVolume, labelOpacity=labelOpacity)
+    
         
     def showVolumeRenderingMIP(self, volumeNode, useSliceViewColors=True):
         """
@@ -1112,6 +1262,23 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
     # TODO: define function to add bounding box to the 3D rendering, as shown here: https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#markups-roi
     # def draw_bounding_box(self, segmentID, markupNode):
+
+    # Delete some segments in the segment editor (by giving the list "items_to_remove" of segments to delete) or 
+    # delete all segments in the list and create a new empty one (default behaviour)
+    def resetSegmentList(self, segmentationVolumeNode, items_to_remove=None):
+        
+        maskSegmentations = segmentationVolumeNode.GetSegmentation()
+        if items_to_remove is not None:
+            for segment_iID in maskSegmentations.GetSegmentIDs():
+                segment_i = maskSegmentations.GetSegment(segment_iID)
+                if segment_i.GetName() in items_to_remove:
+                    maskSegmentations.RemoveSegment(segment_i)
+        else:
+            # Remove all segments and create a new one empty
+            for segment_iID in maskSegmentations.GetSegmentIDs():
+                segment_i = maskSegmentations.GetSegment(segment_iID)
+                maskSegmentations.RemoveSegment(segment_i)
+            maskSegmentations.AddEmptySegment()
 
     # JU - Crop Volume from ROI Box:
     def cropVolumeFromROI(self, inputVolumeArray, referenceBoxROINode, referenceScalarVolumeNode):
@@ -1182,21 +1349,29 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
     def subtractVolumes(self, inputSequenceNode, minuendIndex, subtrahendIndex, outputVolumeNode=None):
         
-        # Get volume from sequence
+        # if the outputVolume does not exist, creates a new one and returns it:
+        if outputVolumeNode is None:
+            outputVolumeNode = slicer.modules.volumes.logic().CloneVolume(inputSequenceNode.GetNthDataNode(minuendIndex), "substractionVolumeNode")
+            
         minuendVolume = slicer.util.arrayFromVolume(inputSequenceNode.GetNthDataNode(minuendIndex))
         subtrahendVolume = slicer.util.arrayFromVolume(inputSequenceNode.GetNthDataNode(subtrahendIndex))
-        subtractedVolume = minuendVolume - subtrahendVolume
-        if outputVolumeNode is not None:
-            slicer.util.updateVolumeFromArray(outputVolumeNode, subtractedVolume)
-            return outputVolumeNode
-        else:
-            return subtractedVolume
-    
+        # Ensure each volume is float, so the dynamic range is ok to represent the data without clipping it
+        subtractedVolume = np.abs(minuendVolume.astype(float) - subtrahendVolume.astype(float))
+        
+        slicer.util.updateVolumeFromArray(outputVolumeNode, subtractedVolume)
+        outputVolumeNode.SetName(f'ABS[Volume({minuendIndex})-Volume({subtrahendIndex})]')
+        return outputVolumeNode
+        
     def getStatsFromMask(self, volumeMaskNode, segmentID):
         
         # To get Summary statistics use the SegmentStatistics module
         # It returns a dictionary with the statistics corresponding to the segmentID provided
+        # To get the complete list of statistics use:
+        # import SegmentStatistics
+        # SegmentStatistics.SegmentStatisticsLogic().getParameterNode().GetParameterNames()
+
         import SegmentStatistics
+
         segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
         segStatLogic.getParameterNode().SetParameter("Segmentation", volumeMaskNode.GetID())
         segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled",str(True))
@@ -1317,6 +1492,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 latePostContrastIndex: int=-1,
                 timings: dict={},
                 PEthreshold: float=70.0,
+                SERthreshold: float=1.4,
                 BKGRNDthreshold: float=60.0,
                 segmentNodeID: str='', 
                 ) -> None:
@@ -1356,7 +1532,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         time_intensity_curve = np.full((nt, len(tableNodeDict['TICTable'][1])), np.nan)
         time_intensity_curve[:,0] = np.linspace(0, nt, nt, endpoint=False) 
         if timings is not None:
-            # print(f"Time Points: {timings['timepoints']}")
+            print(f"Time Points: {timings['timepoints']}")
             time_intensity_curve[:, 0] = timings['timepoints'] / (1000 * 60) # From ms to min
         
         # JU - Create temporary volumes to work with inside this function:
@@ -1378,10 +1554,12 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Get the segment selected by the list "Segment Label Mask":
         maskSegmentation = maskVolumeSegmentationNode.GetSegmentation()
         # Before doing anything, loop over the segmentation list and delete all labels created locally by this function in previous runs:
-        for segment_iID in maskSegmentation.GetSegmentIDs():
-            segment_i = maskSegmentation.GetSegment(segment_iID)
-            if segment_i.GetName() in self.SERlegend:
-                maskSegmentation.RemoveSegment(segment_i)
+        self.resetSegmentList(maskVolumeSegmentationNode, items_to_remove=self.SERlegend)
+                    
+        # for segment_iID in maskSegmentation.GetSegmentIDs():
+        #     segment_i = maskSegmentation.GetSegment(segment_iID)
+        #     if segment_i.GetName() in self.SERlegend:
+        #         maskSegmentation.RemoveSegment(segment_i)
         
         # Ensure visibility for the selected segment is ON (TRUE)
         selectedSegment = maskSegmentation.GetSegment(segmentNodeID)
@@ -1587,10 +1765,16 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                             'value': np.max(segmentStats['obb_diameter_mm']['value']),
                             'units': segmentStats['obb_diameter_mm']['units']}
         # ROI Volume:
+        # The value returned by segmentStats is the enclosing box (Vol = prod(OBB_diameter)). 
+        # To get the equivalent ellipsoidal volume, the formula is 4pi/3 * prod(OBB_radius)
+        # Therefore, we need to multiply Vol by: (0.5)^3 * (4pi/3)
+        ellipsoidScale = (0.5**3) * (4/3) * np.pi
         roiVolume = {'name': 'ROI Volume',
-                        'value': segmentStats['volume_cm3']['value'],
+                        'value': segmentStats['volume_cm3']['value'] * ellipsoidScale,
                         'units': segmentStats['volume_cm3']['units']}
-        
+        print(f"ROI Diameter: {segmentStats['obb_diameter_mm']['value']}")
+        print(f"ROI Volume: {segmentStats['volume_mm3']['value']}[mm3]")
+        print(f"ROI Volume Ellipsoid: {roiVolume['value']}[cm3]")
         labelColumn = vtk.vtkStringArray()
         labelColumn.SetName(tableNodeDict['SummaryTable'][1][0])
         statsColumn = vtk.vtkDoubleArray()
@@ -1598,9 +1782,39 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         unitsColumn = vtk.vtkStringArray()
         unitsColumn.SetName(tableNodeDict['SummaryTable'][1][2])
         # Add stats to Summary Table:
-        labelColumnContent = [maxROIDiameter['name'], 'Bolus injection time', 'Maximum Enhancement','Delta Enhancement','First Pass Enhancement','Enhancement Slope', roiVolume['name']]
-        statsColumnContent = [maxROIDiameter['value'], timings['injectionTime']/(1000*60), max_ENH[seg_points].mean(), delta_ENH.mean(), first_pass_ENH.mean(), m_slope, roiVolume['value']]
-        unitsColumnContent = [maxROIDiameter['units'], 'min', '%', '%', '%', '[]', roiVolume['units']]
+        labelColumnContent = ['PE Threshold',
+                              'SER Threshold',
+                              maxROIDiameter['name'], 
+                              roiVolume['name'],
+                              'Bolus injection time',
+                              'Early Phase Time',
+                              'Late Phase Time',
+                              'Maximum Enhancement',
+                              'Delta Enhancement',
+                              'First Pass Enhancement',
+                              'Enhancement Slope']
+        statsColumnContent = [PEthreshold,
+                              SERthreshold,
+                              maxROIDiameter['value'], 
+                              roiVolume['value'],
+                              timings['injectionTime']/(1000*60),
+                              time_intensity_curve[earlyPostContrastIndex, 0],
+                              time_intensity_curve[latePostContrastIndex, 0],
+                              max_ENH[seg_points].mean(), 
+                              delta_ENH.mean(), 
+                              first_pass_ENH.mean(), 
+                              m_slope]
+        unitsColumnContent = ['%',
+                              '[]',
+                              maxROIDiameter['units'], 
+                              roiVolume['units'], 
+                              'min',
+                              'min',
+                              'min',
+                              '%', 
+                              '%', 
+                              '%', 
+                              '[]']
         for rows in zip(labelColumnContent, statsColumnContent, unitsColumnContent):
             labelColumn.InsertNextValue(rows[0])
             statsColumn.InsertNextValue(rows[1])
@@ -1645,7 +1859,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         distColumn.InsertValue(len(self.SERlegend), 100 * FTVsegmentStats['voxel_count']['value']/FTVstats[1])
 
         # JU - Update table and plot - TODO: I think this should be moved to a different function
+        print(f'Updating Table TIC...')
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
+        print(f'Done updating Table TIC')
         tableNodeDict['SummaryTable'][0].AddColumn(labelColumn)
         tableNodeDict['SummaryTable'][0].AddColumn(statsColumn)
         tableNodeDict['SummaryTable'][0].AddColumn(unitsColumn)

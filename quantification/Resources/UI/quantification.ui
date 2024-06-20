@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>497</width>
-    <height>876</height>
+    <height>916</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -23,8 +23,60 @@
       <string>Inputs</string>
      </property>
      <layout class="QGridLayout" name="inputGridLayout">
-      <item row="3" column="0" colspan="3">
-       <widget class="qMRMLNodeComboBox" name="inputMaskSelector">
+      <item row="0" column="0" colspan="2">
+       <widget class="qMRMLNodeComboBox" name="inputSelector">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+          <weight>50</weight>
+          <bold>false</bold>
+         </font>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::WheelFocus</enum>
+        </property>
+        <property name="toolTip">
+         <string>Select a 4D sequence from the list</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLSequenceNode</string>
+         </stringlist>
+        </property>
+        <property name="showChildNodeTypes">
+         <bool>true</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="rename" stdset="0">
+         <bool>true</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>input4DVolume</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="sequenceRegistrationButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
           <horstretch>0</horstretch>
@@ -38,26 +90,171 @@
           <bold>false</bold>
          </font>
         </property>
+        <property name="focusPolicy">
+         <enum>Qt::StrongFocus</enum>
+        </property>
         <property name="toolTip">
-         <string>Select a ROI Mask</string>
+         <string>Go to Sequence Registration module.</string>
         </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLSegmentationNode</string>
-         </stringlist>
+        <property name="text">
+         <string>Register Sequence</string>
         </property>
-        <property name="showChildNodeTypes">
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="3">
+       <widget class="ctkCollapsibleButton" name="relevantIndicesCollapsibleButton">
+        <property name="enabled">
          <bool>false</bool>
         </property>
-        <property name="addEnabled">
-         <bool>false</bool>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
         </property>
-        <property name="removeEnabled">
-         <bool>false</bool>
+        <property name="text">
+         <string>Identify relevant timepoints</string>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>inputMaskVolume</string>
+        <property name="collapsed">
+         <bool>true</bool>
         </property>
+        <layout class="QGridLayout" name="identifyTimepointsGridLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelSelectPreContrast">
+           <property name="toolTip">
+            <string>Index of pre-contrast image</string>
+           </property>
+           <property name="text">
+            <string>Pre-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderPreContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the pre-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>indicesDCE.preContrast</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QLabel" name="labelTimePreContrast">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelSelectEarlyPostContrast">
+           <property name="toolTip">
+            <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
+           </property>
+           <property name="text">
+            <string>Early Post-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the Early post-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>indicesDCE.earlyPostContrast</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QLabel" name="labelTimeEarlyPostContrast">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelSelectLatePostContrast">
+           <property name="toolTip">
+            <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
+           </property>
+           <property name="text">
+            <string>Late Post-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderLatePostContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the Late post-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>indicesDCE.latePostContrast</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2">
+          <widget class="QLabel" name="labelTimeLatePostContrast">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
       <item row="2" column="0" colspan="3">
@@ -102,15 +299,15 @@
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QSpinBox" name="subtrahendIndexSelector">
+          <widget class="QSpinBox" name="minuendIndexSelector">
            <property name="toolTip">
-            <string>Select the index of the subtrahend volume</string>
+            <string>Select the index of the minuend volume</string>
            </property>
            <property name="maximum">
             <number>10</number>
            </property>
            <property name="SlicerParameterName" stdset="0">
-            <string>subtrahendIndex</string>
+            <string>subtractIndices.minuend</string>
            </property>
           </widget>
          </item>
@@ -138,15 +335,15 @@
           </widget>
          </item>
          <item row="0" column="3">
-          <widget class="QSpinBox" name="minuendIndexSelector">
+          <widget class="QSpinBox" name="subtrahendIndexSelector">
            <property name="toolTip">
-            <string>Select the index for the minuend volume</string>
+            <string>Select the index for the subtrahend volume</string>
            </property>
            <property name="maximum">
             <number>10</number>
            </property>
            <property name="SlicerParameterName" stdset="0">
-            <string>minuendIndex</string>
+            <string>subtractIndices.subtrahend</string>
            </property>
           </widget>
          </item>
@@ -218,11 +415,8 @@
         </layout>
        </widget>
       </item>
-      <item row="0" column="2">
-       <widget class="QPushButton" name="sequenceRegistrationButton">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
+      <item row="3" column="0" colspan="3">
+       <widget class="qMRMLNodeComboBox" name="inputMaskSelector">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
           <horstretch>0</horstretch>
@@ -236,14 +430,25 @@
           <bold>false</bold>
          </font>
         </property>
-        <property name="focusPolicy">
-         <enum>Qt::StrongFocus</enum>
-        </property>
         <property name="toolTip">
-         <string>Go to Sequence Registration module.</string>
+         <string>Select a ROI Mask</string>
         </property>
-        <property name="text">
-         <string>Register Sequence</string>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLSegmentationNode</string>
+         </stringlist>
+        </property>
+        <property name="showChildNodeTypes">
+         <bool>false</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>inputMaskVolume</string>
         </property>
        </widget>
       </item>
@@ -264,8 +469,8 @@
         <property name="collapsed">
          <bool>true</bool>
         </property>
-        <layout class="QFormLayout" name="segmentEditorFormLayout">
-         <item row="1" column="1">
+        <layout class="QGridLayout" name="segmentEditorGridLayout">
+         <item row="0" column="0">
           <widget class="qMRMLSegmentEditorWidget" name="segmentEditorWidget">
            <property name="defaultTerminologyEntrySettingsKey">
             <string notr="true"/>
@@ -275,8 +480,8 @@
         </layout>
        </widget>
       </item>
-      <item row="0" column="0" colspan="2">
-       <widget class="qMRMLNodeComboBox" name="inputSelector">
+      <item row="5" column="0">
+       <widget class="QPushButton" name="resetSegmentListButton">
         <property name="enabled">
          <bool>false</bool>
         </property>
@@ -294,190 +499,14 @@
          </font>
         </property>
         <property name="focusPolicy">
-         <enum>Qt::WheelFocus</enum>
+         <enum>Qt::StrongFocus</enum>
         </property>
         <property name="toolTip">
-         <string>Select a 4D sequence from the list</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLSequenceNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="rename" stdset="0">
-         <bool>true</bool>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>input4DVolume</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="3">
-       <widget class="ctkCollapsibleButton" name="relevantIndicesCollapsibleButton">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+         <string>Click to reset the segments in the editor list.</string>
         </property>
         <property name="text">
-         <string>Identify relevant timepoints</string>
+         <string>Reset Segments List</string>
         </property>
-        <property name="collapsed">
-         <bool>false</bool>
-        </property>
-        <layout class="QGridLayout" name="identifyTimepointsGridLayout">
-         <item row="0" column="0">
-          <widget class="QLabel" name="labelSelectPreContrast">
-           <property name="toolTip">
-            <string>Index of pre-contras image</string>
-           </property>
-           <property name="text">
-            <string>Pre-Contrast Index:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="ctkSliderWidget" name="indexSliderPreContrast">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="toolTip">
-            <string>Select the index corresponding to the pre-contrast image</string>
-           </property>
-           <property name="decimals">
-            <number>0</number>
-           </property>
-           <property name="pageStep">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="maximum">
-            <double>100.000000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>preContrastIndex</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="2">
-          <widget class="QLabel" name="labelTimePreContrast">
-           <property name="text">
-            <string></string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="labelSelectEarlyPostContrast">
-           <property name="toolTip">
-            <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
-           </property>
-           <property name="text">
-            <string>Early Post-Contrast Index:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="toolTip">
-            <string>Select the index corresponding to the Early post-contrast image</string>
-           </property>
-           <property name="decimals">
-            <number>0</number>
-           </property>
-           <property name="pageStep">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>earlyPostContrastIndex</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2">
-          <widget class="QLabel" name="labelTimeEarlyPostContrast">
-           <property name="text">
-            <string></string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="labelSelectLatePostContrast">
-           <property name="toolTip">
-            <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
-           </property>
-           <property name="text">
-            <string>Late Post-Contrast Index:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="ctkSliderWidget" name="indexSliderLatePostContrast">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="toolTip">
-            <string>Select the index corresponding to the Late post-contrast image</string>
-           </property>
-           <property name="decimals">
-            <number>0</number>
-           </property>
-           <property name="pageStep">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>latePostContrastIndex</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="2">
-          <widget class="QLabel" name="labelTimeLatePostContrast">
-           <property name="text">
-            <string></string>
-           </property>
-          </widget>
-         </item>
-        </layout>
        </widget>
       </item>
      </layout>
@@ -486,7 +515,7 @@
    <item alignment="Qt::AlignTop">
     <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
      <property name="enabled">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -498,7 +527,7 @@
       <string>Parameters</string>
      </property>
      <property name="collapsed">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <layout class="QGridLayout" name="parametersGridLayout">
       <item row="0" column="0" colspan="3">
@@ -541,71 +570,10 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
-       <widget class="ctkSliderWidget" name="peakEnhancementThreshold">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Select the Percent Enhancement Threshold</string>
-        </property>
-        <property name="decimals">
-         <number>0</number>
-        </property>
-        <property name="singleStep">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>100.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>80.000000000000000</double>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>peakEnhancementThreshold</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="labelPEthresholdSlider">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="font">
-         <font>
-          <pointsize>10</pointsize>
-          <weight>50</weight>
-          <bold>false</bold>
-         </font>
-        </property>
-        <property name="text">
-         <string> PE:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="2">
-       <widget class="QLabel" name="PEthreshPCsign">
-        <property name="text">
-         <string>%</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="1">
        <widget class="ctkSliderWidget" name="backgroundThreshold">
         <property name="enabled">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -640,6 +608,121 @@
        <widget class="QLabel" name="backgroundPCsign">
         <property name="text">
          <string>%</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelPEthresholdSlider">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+          <weight>50</weight>
+          <bold>false</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string> PE:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="ctkSliderWidget" name="peakEnhancementThreshold">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select the Percent Enhancement Threshold</string>
+        </property>
+        <property name="decimals">
+         <number>0</number>
+        </property>
+        <property name="singleStep">
+         <double>5.000000000000000</double>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>100.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>80.000000000000000</double>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>peakEnhancementThreshold</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QLabel" name="PEthreshPCsign">
+        <property name="text">
+         <string>%</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="labelSERthresholdSlider">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+          <weight>50</weight>
+          <bold>false</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string> SER:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="ctkSliderWidget" name="signalEnhancementRatioThreshold">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select the Signal Enhancement Ratio Threshold</string>
+        </property>
+        <property name="decimals">
+         <number>2</number>
+        </property>
+        <property name="singleStep">
+         <double>0.050000000000000</double>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>2.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>signalEnhancementRatioThreshold</string>
         </property>
        </widget>
       </item>
@@ -710,7 +793,7 @@
    <item alignment="Qt::AlignTop">
     <widget class="ctkCollapsibleButton" name="outputsCollapsibleButton">
      <property name="enabled">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -722,42 +805,10 @@
       <string>Outputs</string>
      </property>
      <property name="collapsed">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <layout class="QGridLayout" name="outputGridLayout">
-      <item row="2" column="1">
-       <widget class="QCheckBox" name="volumeRenderingViewToggle">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>3D Rendering View</string>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>renderingLayoutViewToggle</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="labelOutputMaps">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Label Maps</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0" rowspan="3" alignment="Qt::AlignVCenter">
+      <item row="0" column="0" rowspan="2" alignment="Qt::AlignVCenter">
        <widget class="QLabel" name="labelLayoutView">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -788,57 +839,13 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="labelTableSelector">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Plain</enum>
-        </property>
-        <property name="text">
-         <string>Tables</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="labelOutputVolumes">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Parametric Maps</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
       <item row="0" column="1">
-       <widget class="QCheckBox" name="defaultViewToggle">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
+       <widget class="QRadioButton" name="defaultLayoutViewRadioButton">
         <property name="text">
          <string>Default Layout View</string>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>defaultLayoutViewToggle</string>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -858,7 +865,14 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="2">
+      <item row="1" column="1">
+       <widget class="QRadioButton" name="renderingLayoutViewRadioButton">
+        <property name="text">
+         <string>3D Rendering View</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
        <widget class="QCheckBox" name="segmentMaskVisibilityToggle">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -874,10 +888,81 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="1" colspan="2">
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelOutputVolumes">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Parametric Maps</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="qMRMLNodeComboBox" name="outputVolumesSelector">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select Output Volume</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist>
+          <string>vtkMRMLSequenceNode</string>
+         </stringlist>
+        </property>
+        <property name="baseName">
+         <string>Output Volumes</string>
+        </property>
+        <property name="noneEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>outputSequenceMaps</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelOutputMaps">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Label Maps</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="2">
        <widget class="qMRMLNodeComboBox" name="outputLabelMapSelector">
         <property name="enabled">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -913,42 +998,25 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1" colspan="2">
-       <widget class="qMRMLNodeComboBox" name="outputVolumesSelector">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
+      <item row="4" column="0">
+       <widget class="QLabel" name="labelTableSelector">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="toolTip">
-         <string>Select Output Volume</string>
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
         </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLSequenceNode</string>
-         </stringlist>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
         </property>
-        <property name="baseName">
-         <string>Output Volumes</string>
+        <property name="text">
+         <string>Tables</string>
         </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>outputSequenceMaps</string>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
        </widget>
       </item>
@@ -1103,22 +1171,6 @@
    </hints>
   </connection>
   <connection>
-   <sender>inputMaskSelector</sender>
-   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
-   <receiver>segmentSelectorWidget</receiver>
-   <slot>setCurrentNode(vtkMRMLNode*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>303</x>
-     <y>72</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>236</x>
-     <y>108</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>quantification</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>segmentSelectorWidget</receiver>
@@ -1131,22 +1183,6 @@
     <hint type="destinationlabel">
      <x>236</x>
      <y>108</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>segmentSelectorWidget</sender>
-   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
-   <receiver>inputMaskSelector</receiver>
-   <slot>setCurrentNode(vtkMRMLNode*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>236</x>
-     <y>108</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>303</x>
-     <y>72</y>
     </hint>
    </hints>
   </connection>
@@ -1195,22 +1231,6 @@
     <hint type="destinationlabel">
      <x>322</x>
      <y>868</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>quantification</sender>
-   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>defaultViewToggle</receiver>
-   <slot>toggle()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>236</x>
-     <y>457</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>292</x>
-     <y>869</y>
     </hint>
    </hints>
   </connection>
@@ -1275,6 +1295,102 @@
     <hint type="destinationlabel">
      <x>367</x>
      <y>220</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inputSelector</receiver>
+   <slot>update()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>437</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>167</x>
+     <y>44</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>inputMaskSelector</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>segmentSelectorWidget</receiver>
+   <slot>setCurrentNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>151</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>248</x>
+     <y>238</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>segmentSelectorWidget</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>inputMaskSelector</receiver>
+   <slot>setCurrentNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>238</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>248</x>
+     <y>151</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>defaultLayoutViewRadioButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>457</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>248</x>
+     <y>384</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>renderingLayoutViewRadioButton</receiver>
+   <slot>click()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>457</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>248</x>
+     <y>409</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>signalEnhancementRatioThreshold</receiver>
+   <slot>update()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>457</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>274</x>
+     <y>246</y>
     </hint>
    </hints>
   </connection>
