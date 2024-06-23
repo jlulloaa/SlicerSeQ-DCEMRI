@@ -1537,7 +1537,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # TODO: Can I make it simpler??
         # FTV map label from SERmap:
         FTVmapVolume = np.where(SERmap > 0, 1.0, 0.0)
-        # print(f'Size FTV Volume: {FTVmapVolume.shape}')
         ftvLabelMapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "FTV label")
         slicer.util.updateVolumeFromArray(tempSERVolumeNode, FTVmapVolume)
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, ftvLabelMapVolumeNode, tempSERVolumeNode)
