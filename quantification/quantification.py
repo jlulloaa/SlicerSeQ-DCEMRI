@@ -57,9 +57,9 @@ This work was (partially) funded by… (grant Name and Number).
 @parameterPack
 class relevantDCEindices:
     
-  preContrast: Annotated[float, WithinRange(0.0, 10.0)] = 0.0
-  earlyPostContrast: Annotated[float, WithinRange(0.0, 10.0)] = 0.0
-  latePostContrast: Annotated[float, WithinRange(0.0, 10.0)] = 0.0
+  preContrast: Annotated[float, WithinRange(0.0, 1000.0)] = 0.0
+  earlyPostContrast: Annotated[float, WithinRange(0.0, 1000.0)] = 0.0
+  latePostContrast: Annotated[float, WithinRange(0.0, 1000.0)] = 0.0
 
   
   def setDefault(self, maxIndex=0):
