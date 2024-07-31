@@ -65,7 +65,7 @@ class relevantDCEindices:
   def setDefault(self, maxIndex=0):
 
       self.preContrast = 0
-      self.earlyPostContrast = 1
+      self.earlyPostContrast = 3
       self.latePostContrast = maxIndex-1
       
 
@@ -965,10 +965,13 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.colourTableNode.SetNamesInitialised(True) # prevent automatic color name generation
 
         for idx, (legend, [r,g,b,a]) in enumerate(self.SERsegmentsLabels['colourMap'].items()):
+            print(f'Index: {idx};\t Legend: {legend}\t Colour:{[r,g,b,a]}')
             success = self.colourTableNode.SetColor(idx, legend, r, g, b, a)
 
             if success:
                 logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
+        
+        print('finish setup Colour Table')
     
         
     def setSERColourMapDict(self, update=False):
@@ -989,50 +992,51 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             SERmapThreshold = 0
             self.serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75, 3.0]            
-            serMapColours = [[0.0, 0.0, 0.0, 0.0], # black & transparent so it can be overlaid with the MIP
-                                  [0.0, 0.0, 1.0, alfa], # blue
-                                  [0.5, 0.0, 0.5, alfa], # purple
-                                  [0.0, 1.0, 0.0, alfa], # green
-                                  [1.0, 0.0, 0.0, alfa], # red
-                                  [1.0, 1.0, 0.0, alfa], # yellow
-                                  [1.0, 1.0, 1.0, alfa] # white (>MaxSER)
-                                ]
+            serMapColours = [[0.0, 0.0, 0.0, 0.0],  # Non-SER values: black & transparent so they can be overlaid with the MIP      
+                             [0.0, 0.0, 1.0, alfa], # blue
+                             [0.5, 0.0, 0.5, alfa], # purple
+                             [0.0, 1.0, 0.0, alfa], # green
+                             [1.0, 0.0, 0.0, alfa], # red
+                             [1.0, 1.0, 0.0, alfa], # yellow
+                            ]
         elif (self._parameterNode.signalEnhancementRatioThreshold == 0.0):
             SERmapThreshold = 0
             self.serMapInterval = [0.0]
-            serMapColours = [[0.0, 0.0, 0.0, 0.0], # black & transparent so it can be overlaid with the MIP
+            serMapColours = [[0.0, 0.0, 0.0, 0.0],   # Non-SER values: black & transparent so they can be overlaid with the MIP 
                              [0.0, 0.0, 1.0, alfa], # blue
-                             ]            
+                             ]
         else:
             SERthreshold = self._parameterNode.signalEnhancementRatioThreshold
             SERmapThreshold = 1
             self.serMapInterval = [0.0, np.round(SERthreshold,2), np.round(SERthreshold*1.10,2)]
             serMapColours = [[0.0, 0.0, 0.0, 0.0], # black & transparent so it can be overlaid with the MIP
-                                [0.0, 0.0, 1.0, alfa], # blue
-                                [0.0, 1.0, 0.0, alfa], # green
-                                [1.0, 0.0, 0.0, alfa], # red
-                            ]
+                             [0.0, 0.0, 1.0, alfa], # blue
+                             [0.0, 1.0, 0.0, alfa], # green
+                             [1.0, 0.0, 0.0, alfa], # red
+                             ]
                 
         if update:
             SERLevelLB = self.serMapInterval[:-1]
             SERLevelUB = self.serMapInterval[1:]
-            nLevels = len(SERLevelLB)
+            # nLevels = len(SERLevelLB)
 
-            SERColourMapDictionary = {'non SER': serMapColours[0]}
-            SERlegend = []
+            legend = 'non SER'
+            SERColourMapDictionary = {legend: serMapColours[0]}
+            SERlegend = [legend]
 
             for idx, (lb, ub) in enumerate(zip(SERLevelLB, SERLevelUB)):
-                if idx == (nLevels - 1):
-                    legend = f'{lb:.2f} ≤ SER ≤ {ub:.2f}'
-                else:
-                    legend = f'{lb:.2f} ≤ SER < {ub:.2f}'
+                legend = f'{lb:.2f} < SER ≤ {ub:.2f}' # LB ≤ SER < UB ==> LB < SER ≤ UB
+                # if idx == (nLevels - 1):
+                    # legend = f'{lb:.2f} < SER ≤ {ub:.2f}' # not yet sure what is correct. Testing
+                # else:
+                    # legend = f'{lb:.2f} < SER ≤ {ub:.2f}' # LB ≤ SER < UB ==> LB < SER ≤ UB
                 SERColourMapDictionary[legend] = serMapColours[idx+1]
                 SERlegend.append(legend)
-
-            # Add upper limit legent (>MaxSER)
-            legend = f'{self.serMapInterval[-1]:.2f} < SER '
-            SERColourMapDictionary[legend] = serMapColours[-1]
-            SERlegend.append(legend)            
+            
+            # Add upper limit legent (>MaxSER) - Consider this as non-SER (JU 30/07/2024)
+            # legend = f'{self.serMapInterval[-1]:.2f} < SER '
+            # SERColourMapDictionary[legend] = serMapColours[-1]
+            # SERlegend.append(legend)            
                 
             self.SERsegmentsLabels = {'SERthreshold': SERmapThreshold,
                                     'colourMap': SERColourMapDictionary,
@@ -1061,8 +1065,11 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
         # Constants:
         self.EPSILON = 1.0e-6
-        self.INF_THRESHOLD = 1.0e6
-        self.UPPER_ENH_THRESHOLD = 5.0e6
+        # Anything above SER_UPPER_THRESHOLD will be considered NON-SER (together with negative values). 
+        # This is to be consistent with FTVDCEMRI and Aegis, where everything above 3.0 is not considered.
+        # By doing this, I also simplify the labelling and SER map derivation, as the upper threshold is already cut with this value
+        self.SER_UPPER_THRESHOLD = 3.0
+        # self.UPPER_ENH_THRESHOLD = 5.0e6 # This is no longer used (why?)
         self.PIXEL_CONNECTIVITY = 4
         self.FG_OPACITY = 0.5
         self.LB_OPACITY = 0.0
@@ -1486,6 +1493,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         # The background threshold is defined from the masked section only:
         bckgrnd_thresh = (BKGRNDthreshold/100.0) * np.percentile(St0, 95)
+
         base_mask = (St0 >= bckgrnd_thresh) &  label
 
         St_minus_St0 = inputVolume4Darray - St0
@@ -1497,6 +1505,16 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         base_mask &= (PE >= PEthreshold)
 
         PE = np.where(base_mask, PE, 0)
+        # Debug 30/07/2024
+        print(''.join(['§']*100))
+        print(f'Stats of the PE data:')
+        print(''.join(['-']*50))
+        print(f'PE volume size: {PE.shape}')
+        print(f'NonZero elements: {np.count_nonzero(PE[PE>0])}')
+        print(f'[Min, Median, Max]: [{np.min(PE[PE>0]):.2f}, {np.median(PE[PE>0]):.2f}, {np.max(PE[PE>0]):.2f}]')
+        print(f'Mean ± Std: {np.mean(PE[PE>0]):.2f} ± {np.std(PE[PE>0]):.2f}')
+        print(''.join(['§']*100))
+        # end debug section 30/07/2024
         
         PEmapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = PE
 
@@ -1507,7 +1525,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
         SER = ( St1_minus_St0 / ( Stn_minus_St0 + self.EPSILON ) ) 
         SER[SER < 0.0] = 0.0
-        SER[SER > self.INF_THRESHOLD] = 0.0
+        SER[SER > self.SER_UPPER_THRESHOLD] = 0.0
         base_mask &= (SER >= 0.0)
 
         SER = np.where(base_mask, SER, 0)
@@ -1522,23 +1540,50 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         # Relevant for when adding a user-defined segmentation mask (e.g. Tumour_tissue)
         seg_points = np.where(base_mask)
+        # Debug 30/07/2024
+        print(''.join(['§']*100))
+        print('This should also be equivalent to the tumour mask stats')
+        print(f'Conn Pix Mask stats:')
+        print(''.join(['-']*50))
+        print(f'Connectivity: {self.PIXEL_CONNECTIVITY}')
+        print(f'Non Zero elements: {np.count_nonzero(base_mask)}')
+        print(f'Mask size: {base_mask.shape}')
+        print(f'Max Value: {np.max(base_mask)}')
+        print(''.join(['§']*100))
+        # end debug section 30/07/2024
 
         SERmap = np.zeros_like(SER)
         nLevels = len(serMapDictionary['levelThreshold']['UB'])
         for idx, (lb, ub) in enumerate(zip(serMapDictionary['levelThreshold']['LB'], serMapDictionary['levelThreshold']['UB'])):
-            if idx == (nLevels - 1):
-                SERmap[(SER >= lb) & (SER < ub)] = idx+1
-            else:
-                SERmap[(SER >= lb) & (SER <= ub)] = idx+1
+            truth_table_indices = ( (SER > lb) & (SER <= ub) )
+            # if idx == (nLevels - 1):
+            #     truth_table_indices = ( (SER >= lb) & (SER <= ub) )
+            # else:
+            #     truth_table_indices = ( (SER > lb) & (SER <= ub) )
+            SERmap[truth_table_indices] = idx + 1
             
         # Add the last element of the interval that makes MaxSER < SER:
+        # JU 30/07/2024: How to deal with this if is NON-SER??
         idx = nLevels
         if idx == 0:
             SERmap[SER > 0.0] = 1
-        else:
-            SERmap[SER > serMapDictionary['levelThreshold']['UB'][-1]] = idx + 1
+        # else:
+            # JU 30/07/2024: Check whether this must be 0 or idx+1.
+            # SERmap[SER > serMapDictionary['levelThreshold']['UB'][-1]] =  0 # idx + 1
         SERmap *= base_mask
+        
+        # Debug 30/07/2024
+        print(''.join(['§']*100))
+        print('SER map stats:')
+        print(''.join(['-']*50))
+        for indx, (legend, colourmap) in enumerate(zip(serMapDictionary['legend'], 
+                                          serMapDictionary['colourMap'])):
+            print(f'{legend} ({indx}:{colourmap}): {np.count_nonzero(SERmap==(indx))}');
+        print(''.join(['§']*100))
 
+        # end debug section 30/07/2024
+
+        
         SERmapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = SERmap
         
         slicer.util.updateVolumeFromArray(tempSERVolumeNode, SERmapTemplate)
@@ -1546,8 +1591,12 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         volumes_logic = slicer.modules.volumes.logic()
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
         # Import label map into a segmentation:
+        print('Import label map into a segmentation:')
+        print(maskVolumeSegmentationNode.GetSegmentation().GetSegmentIDs())
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)       
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
+        print('after...')
+        print(maskVolumeSegmentationNode.GetSegmentation().GetSegmentIDs())
 
 
         # FTV map label from SERmap:
@@ -1560,7 +1609,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             slicer.util.updateVolumeFromArray(tempSERVolumeNode, mapVolume)
             volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, labelMapVolumeNode, tempSERVolumeNode)
             maskVolumeSegmentationNode.GetSegmentation().AddEmptySegment(mapNameID)
-            
+            print(mapNameID)
             mapSegmentID = vtk.vtkStringArray()
             mapSegmentID.InsertNextValue(mapNameID)
             slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelMapVolumeNode, maskVolumeSegmentationNode, mapSegmentID)
@@ -1661,24 +1710,31 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         ETVstats = [mapStats['ETV']['volume_cm3']['value'], mapStats['ETV']['voxel_count']['value']]
         
         SERlegendCheck = [True]*len(serMapDictionary['legend'])
+        # Skip non SER values
+        SERlegendCheck[serMapDictionary['legend'].index('non SER')]=False
+
         for segment_iID in maskSegmentations.GetSegmentIDs():
-            segmentName = maskSegmentation.GetSegment(segment_iID).GetName()
+            segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
+            print(f'Mask Name: {segmentName}')
             if segmentName in serMapDictionary['legend']:
+                print(f'Processing Mask {segmentName}...')
                 segmentPos = serMapDictionary['legend'].index(segmentName)
                 segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
                 nameColumn.InsertValue(segmentPos, segmentName)
-                volumeColumn.InsertValue(segmentPos, segmentStats['volume_cm3']['value'])
-                distColumn.InsertValue(segmentPos, 100 * segmentStats['voxel_count']['value'] / ETVstats[1])
+                volumeColumn.InsertValue(segmentPos, np.round(segmentStats['volume_cm3']['value'],3))
+                distColumn.InsertValue(segmentPos, np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2))
                 SERlegendCheck[segmentPos] = False
-        for idx in range(len(serMapDictionary['legend'])):
-            if SERlegendCheck[idx]:
-                nameColumn.InsertValue(idx, serMapDictionary['legend'][idx])
-                volumeColumn.InsertValue(idx, 0.0)
-                distColumn.InsertValue(idx, 0.0)
                 
+        for idx in range(len(serMapDictionary['legend'])):
+            if SERlegendCheck[idx] :
+                nameColumn.InsertValue(idx, serMapDictionary['legend'][idx])
+                volumeColumn.InsertValue(idx, np.nan)
+                distColumn.InsertValue(idx, np.nan)
+        
+        
         nameColumn.InsertValue(len(serMapDictionary['legend']), 'FTV (Functional Tumour Volume)')
-        volumeColumn.InsertValue(len(serMapDictionary['legend']), FTVstats[0])
-        distColumn.InsertValue(len(serMapDictionary['legend']), 100 * FTVstats[1]/ETVstats[1])
+        volumeColumn.InsertValue(len(serMapDictionary['legend']), np.round(FTVstats[0],3))
+        distColumn.InsertValue(len(serMapDictionary['legend']), np.round(100 * FTVstats[1]/ETVstats[1], 2))
 
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
