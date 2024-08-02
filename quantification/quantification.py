@@ -1712,10 +1712,14 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 volumeColumn.InsertValue(idx, np.nan)
                 distColumn.InsertValue(idx, np.nan)
         
-        # Add the FTV stats at the end of list
+        # Add the FTV and ETV stats at the end of list
         nameColumn.InsertNextValue('FTV (Functional Tumour Volume)')
         volumeColumn.InsertNextValue(np.round(FTVstats[0],3))
         distColumn.InsertNextValue(np.round(100 * FTVstats[1]/ETVstats[1], 2))
+
+        nameColumn.InsertNextValue('ETV (Enhanced Tumour Volume)')
+        volumeColumn.InsertNextValue(np.round(ETVstats[0],3))
+        distColumn.InsertNextValue(np.round(100.0, 2))
 
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
