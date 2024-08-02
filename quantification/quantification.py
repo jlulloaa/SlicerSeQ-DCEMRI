@@ -341,9 +341,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.displaySubtractionButton.connect("clicked(bool)", self.onDisplaySubtractionVolumes)
         self.ui.resetSegmentListButton.connect("clicked(bool)", self.onResetSegmentList)
         
-        # # JU - for the SER threshold slider, set the maximum to the UPPER_THRESHOLD:
-        # self.ui.signalEnhancementRatioThreshold.maximum=self.SER_UPPER_THRESHOLD
-
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
@@ -402,9 +399,10 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # # JU - for the SER threshold slider, set the maximum to the UPPER_THRESHOLD:
         self.ui.signalEnhancementRatioThreshold.maximum = self.SER_UPPER_THRESHOLD / (1.0 + self.SER_DELTA_FACTOR)
-        # self._parameterNode.signalEnhancementRatioThreshold.maximum = self.SER_UPPER_THRESHOLD
+
         # JU - Initialise SERsegmentsLabels for SER values. It has to happens after the _parameterNode is created
         self.setSERColourMapDict(update=True)
+
         # JU 12/06/2024 - The following should happen only if input4D volume exist
         # Initialise the output sequence that'll store the output maps, but only if the input sequence has been defined:
 
@@ -579,7 +577,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.setTimeValueOnSlider()
 
             # If not yet defined, initialise the colour map dictionary
-            # if self.serMapInterval is None:
             self.setSERColourMapDict()
 
             if self._parameterNode.inputMaskVolume:
@@ -721,7 +718,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onInputSelect(self):
         
         if not self._parameterNode.input4DVolume: #self.ui.inputSelector.currentNode():
-            # print('No nodes to use')
             numberOfDataNodes = 0
             
         else:
@@ -781,10 +777,12 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.input4DVolume is not None:
             
             if self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels") is not None:
+                
                 # Get acquisition times from DICOM metadata (output in ms)
                 self.timeFrames = np.array(self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels").split(',')).astype(float)
             else:
                 nt = self._parameterNode.input4DVolume.GetNumberOfDataNodes()
+                
                 # normalise the time axis to nt = 1min = 60x10e3 [ms] to be consistent with the calculations  
                 self.timeFrames = np.linspace(0, nt*60.0*1.0e3, num=nt, endpoint=True)
 
@@ -857,9 +855,11 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if (self.roiNode is None) & (self.currentVolume is not None):
                 # setup the ROI
                 self.roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "RefBox")
+
                 # JU - Setup a Box ROI to crop the volume of interest. When running this function, the input volume must have been defined:
                 # Fit the ROI to the volume on display:
                 self.logic.fitBoxROImarkupToVolume(self.currentVolume, self.roiNode)
+
                 # Set the initial dimensions to be a fraction of the volume size
                 halfSize = tuple([dim/4.0 for dim in self.roiNode.GetSize()])
                 self.roiNode.SetSize(halfSize)
@@ -1004,7 +1004,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         alfa = 1.0
 
         if self._parameterNode.displaySERrange:
-
             SERmapThreshold = 0
             self.serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75]            
             serMapColours = [[0.0, 0.0, 0.0, 0.0],  # Non-SER values: black & transparent so they can be overlaid with the MIP      
@@ -1020,9 +1019,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             serMapColours = [[0.0, 0.0, 0.0, 0.0],   # Non-SER values: black & transparent so they can be overlaid with the MIP 
                             [0.0, 0.0, 1.0, alfa], # blue
                             ]
-            # if serUpperThreshold is not None:
-            #     self.serMapInterval.append(serUpperThreshold)
-            #     serMapColours.append( [1.0, 1.0, 1.0, alfa]) # white
         else:
             SERthreshold = self._parameterNode.signalEnhancementRatioThreshold
             SERupperDelta = (1.0 + self.SER_DELTA_FACTOR) * SERthreshold
@@ -1032,11 +1028,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                             [0.0, 0.0, 1.0, alfa], # blue  --> 0 < SER ≤ SERthresh
                             [0.0, 1.0, 0.0, alfa], # yellow --> SERthresh < SER ≤ SERthresh*(1+delta)
                             ]
-            # if serUpperThreshold is not None:
-            #     updatedSerUpperThreshold = np.max([serUpperThreshold, max(self.serMapInterval)])
-            #     print(f'MaxSER thresh: {updatedSerUpperThreshold}')
-            #     self.serMapInterval.append(updatedSerUpperThreshold)
-            #     serMapColours.append( [1.0, 1.0, 1.0, alfa]) # white
         
         if serUpperThreshold is not None:
             if serUpperThreshold > max(self.serMapInterval):
@@ -1047,25 +1038,15 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if update:
             SERLevelLB = self.serMapInterval[:-1]
             SERLevelUB = self.serMapInterval[1:]
-            # nLevels = len(SERLevelLB)
-
             legend = 'non SER'
             SERColourMapDictionary = {legend: serMapColours[0]}
             SERlegend = [legend]
 
             for idx, (lb, ub) in enumerate(zip(SERLevelLB, SERLevelUB)):
                 legend = f'{lb:.2f} < SER ≤ {ub:.2f}' # LB ≤ SER < UB ==> LB < SER ≤ UB
-                # if idx == (nLevels - 1):
-                    # legend = f'{lb:.2f} < SER ≤ {ub:.2f}' # not yet sure what is correct. Testing
-                # else:
-                    # legend = f'{lb:.2f} < SER ≤ {ub:.2f}' # LB ≤ SER < UB ==> LB < SER ≤ UB
                 SERColourMapDictionary[legend] = serMapColours[idx+1]
                 SERlegend.append(legend)
             
-            # Add upper limit legent (>MaxSER) - Consider this as non-SER (JU 30/07/2024)
-            # legend = f'{self.serMapInterval[-1]:.2f} < SER '
-            # SERColourMapDictionary[legend] = serMapColours[-1]
-            # SERlegend.append(legend)            
                 
             self.SERsegmentsLabels = {'SERthreshold': SERmapThreshold,
                                     'colourMap': SERColourMapDictionary,
