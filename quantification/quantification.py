@@ -258,6 +258,14 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.colourTableNode = None
         self.timeFrames = None
         self.serMapInterval = None
+        # Anything above SER_UPPER_THRESHOLD will be considered NON-SER (together with negative values). 
+        # This is to be consistent with FTVDCEMRI and Aegis, where everything above 3.0 is not considered.
+        # By doing this, I also simplify the labelling and SER map derivation, as the upper threshold is already cut with this value
+        self.SER_UPPER_THRESHOLD = 3.0
+        # When selecting a single SER Threshold, the intervals are defined by:
+        # 0 < SER ≤ SER_Threshold
+        # SER_Threshold < SER ≤  SER_Threshold * (1 + SER_DELTA_FACTOR)
+        self.SER_DELTA_FACTOR = 0.1 
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -333,6 +341,9 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.displaySubtractionButton.connect("clicked(bool)", self.onDisplaySubtractionVolumes)
         self.ui.resetSegmentListButton.connect("clicked(bool)", self.onResetSegmentList)
         
+        # # JU - for the SER threshold slider, set the maximum to the UPPER_THRESHOLD:
+        # self.ui.signalEnhancementRatioThreshold.maximum=self.SER_UPPER_THRESHOLD
+
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
@@ -389,6 +400,9 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if firstInputSequenceNode:
                 self._parameterNode.input4DVolume = firstInputSequenceNode
 
+        # # JU - for the SER threshold slider, set the maximum to the UPPER_THRESHOLD:
+        self.ui.signalEnhancementRatioThreshold.maximum = self.SER_UPPER_THRESHOLD / (1.0 + self.SER_DELTA_FACTOR)
+        # self._parameterNode.signalEnhancementRatioThreshold.maximum = self.SER_UPPER_THRESHOLD
         # JU - Initialise SERsegmentsLabels for SER values. It has to happens after the _parameterNode is created
         self.setSERColourMapDict(update=True)
         # JU 12/06/2024 - The following should happen only if input4D volume exist
@@ -613,7 +627,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.logic.resetSegmentList(self._parameterNode.inputMaskVolume, items_to_remove=self.SERsegmentsLabels['legend'])            
 
             # Update SERsegmentsLabels with the value in the SER theshold slider:
-            self.setSERColourMapDict(update=True)
+            self.setSERColourMapDict(update=True, serUpperThreshold=self.SER_UPPER_THRESHOLD)
             self.setupColourTable()
 
             # Compute output
@@ -632,7 +646,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self.timings,
                                self._parameterNode.peakEnhancementThreshold,
                                self._parameterNode.backgroundThreshold,
-                               self.segmentID)
+                               self.segmentID,
+                               self.SER_UPPER_THRESHOLD)
             self.update_plot_window()
             
             try:
@@ -974,7 +989,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         print('finish setup Colour Table')
     
         
-    def setSERColourMapDict(self, update=False):
+    def setSERColourMapDict(self, update=False, serUpperThreshold=None):
 
         """ In the FTV Extension, they split the intervals as follows:
         ]0, 0.9]: Blue (0, 0, 1)
@@ -991,7 +1006,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.displaySERrange:
 
             SERmapThreshold = 0
-            self.serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75, 3.0]            
+            self.serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75]            
             serMapColours = [[0.0, 0.0, 0.0, 0.0],  # Non-SER values: black & transparent so they can be overlaid with the MIP      
                              [0.0, 0.0, 1.0, alfa], # blue
                              [0.5, 0.0, 0.5, alfa], # purple
@@ -1003,17 +1018,31 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             SERmapThreshold = 0
             self.serMapInterval = [0.0]
             serMapColours = [[0.0, 0.0, 0.0, 0.0],   # Non-SER values: black & transparent so they can be overlaid with the MIP 
-                             [0.0, 0.0, 1.0, alfa], # blue
-                             ]
+                            [0.0, 0.0, 1.0, alfa], # blue
+                            ]
+            # if serUpperThreshold is not None:
+            #     self.serMapInterval.append(serUpperThreshold)
+            #     serMapColours.append( [1.0, 1.0, 1.0, alfa]) # white
         else:
             SERthreshold = self._parameterNode.signalEnhancementRatioThreshold
+            SERupperDelta = (1.0 + self.SER_DELTA_FACTOR) * SERthreshold
             SERmapThreshold = 1
-            self.serMapInterval = [0.0, np.round(SERthreshold,2), np.round(SERthreshold*1.10,2)]
+            self.serMapInterval = [0.0, np.round(SERthreshold,2), np.round(SERupperDelta,2)]
             serMapColours = [[0.0, 0.0, 0.0, 0.0], # black & transparent so it can be overlaid with the MIP
-                             [0.0, 0.0, 1.0, alfa], # blue
-                             [0.0, 1.0, 0.0, alfa], # green
-                             [1.0, 0.0, 0.0, alfa], # red
-                             ]
+                            [0.0, 0.0, 1.0, alfa], # blue  --> 0 < SER ≤ SERthresh
+                            [0.0, 1.0, 0.0, alfa], # yellow --> SERthresh < SER ≤ SERthresh*(1+delta)
+                            ]
+            # if serUpperThreshold is not None:
+            #     updatedSerUpperThreshold = np.max([serUpperThreshold, max(self.serMapInterval)])
+            #     print(f'MaxSER thresh: {updatedSerUpperThreshold}')
+            #     self.serMapInterval.append(updatedSerUpperThreshold)
+            #     serMapColours.append( [1.0, 1.0, 1.0, alfa]) # white
+        
+        if serUpperThreshold is not None:
+            if serUpperThreshold > max(self.serMapInterval):
+                self.serMapInterval.append(serUpperThreshold)
+            serMapColours.append( [1.0, 1.0, 1.0, alfa]) # white
+        
                 
         if update:
             SERLevelLB = self.serMapInterval[:-1]
@@ -1065,10 +1094,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
         # Constants:
         self.EPSILON = 1.0e-6
-        # Anything above SER_UPPER_THRESHOLD will be considered NON-SER (together with negative values). 
-        # This is to be consistent with FTVDCEMRI and Aegis, where everything above 3.0 is not considered.
-        # By doing this, I also simplify the labelling and SER map derivation, as the upper threshold is already cut with this value
-        self.SER_UPPER_THRESHOLD = 3.0
         # self.UPPER_ENH_THRESHOLD = 5.0e6 # This is no longer used (why?)
         self.PIXEL_CONNECTIVITY = 4
         self.FG_OPACITY = 0.5
@@ -1284,7 +1309,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # SegmentStatistics.SegmentStatisticsLogic().getParameterNode().GetParameterNames()
 
         import SegmentStatistics
-
+        print(f'Analysing Segment: {segmentID}')
         segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
         segStatLogic.getParameterNode().SetParameter("Segmentation", volumeMaskNode.GetID())
         segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled",str(True))
@@ -1317,7 +1342,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             markupROI_RAS['RASmax'] = transformRasToVolumeRas.TransformPoint(markupROI_RAS['RASmax'])
         
         markupROI_IJK_inRefVol = self.convertRAStoIJKVolumeNodeCoordinates(markupROI_RAS, referenceVolumeNode)
-        
+           
         return markupROI_IJK_inRefVol
     
 
@@ -1404,6 +1429,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 PEthreshold: float=70.0,
                 BKGRNDthreshold: float=60.0,
                 segmentNodeID: str='',
+                serUpperThreshold: float=3.0
                 ) -> None:
         """
         TODO: Update description of the input parameters
@@ -1505,16 +1531,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         base_mask &= (PE >= PEthreshold)
 
         PE = np.where(base_mask, PE, 0)
-        # Debug 30/07/2024
-        print(''.join(['§']*100))
-        print(f'Stats of the PE data:')
-        print(''.join(['-']*50))
-        print(f'PE volume size: {PE.shape}')
-        print(f'NonZero elements: {np.count_nonzero(PE[PE>0])}')
-        print(f'[Min, Median, Max]: [{np.min(PE[PE>0]):.2f}, {np.median(PE[PE>0]):.2f}, {np.max(PE[PE>0]):.2f}]')
-        print(f'Mean ± Std: {np.mean(PE[PE>0]):.2f} ± {np.std(PE[PE>0]):.2f}')
-        print(''.join(['§']*100))
-        # end debug section 30/07/2024
         
         PEmapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = PE
 
@@ -1525,7 +1541,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
         SER = ( St1_minus_St0 / ( Stn_minus_St0 + self.EPSILON ) ) 
         SER[SER < 0.0] = 0.0
-        SER[SER > self.SER_UPPER_THRESHOLD] = 0.0
+        SER[SER > serUpperThreshold] = 0.0
         base_mask &= (SER >= 0.0)
 
         SER = np.where(base_mask, SER, 0)
@@ -1536,30 +1552,15 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # JU - This convolution is suppossed to define the maximum over a neighbourhood, 
         # but I'm not yet convinced it does that...
         convbrmask = signal.convolve(base_mask, kernel, mode='same')
-        base_mask = (convbrmask >= (100 + self.PIXEL_CONNECTIVITY))
+        base_mask &= (convbrmask >= (100 + self.PIXEL_CONNECTIVITY))
 
         # Relevant for when adding a user-defined segmentation mask (e.g. Tumour_tissue)
         seg_points = np.where(base_mask)
-        # Debug 30/07/2024
-        print(''.join(['§']*100))
-        print('This should also be equivalent to the tumour mask stats')
-        print(f'Conn Pix Mask stats:')
-        print(''.join(['-']*50))
-        print(f'Connectivity: {self.PIXEL_CONNECTIVITY}')
-        print(f'Non Zero elements: {np.count_nonzero(base_mask)}')
-        print(f'Mask size: {base_mask.shape}')
-        print(f'Max Value: {np.max(base_mask)}')
-        print(''.join(['§']*100))
-        # end debug section 30/07/2024
 
         SERmap = np.zeros_like(SER)
         nLevels = len(serMapDictionary['levelThreshold']['UB'])
         for idx, (lb, ub) in enumerate(zip(serMapDictionary['levelThreshold']['LB'], serMapDictionary['levelThreshold']['UB'])):
             truth_table_indices = ( (SER > lb) & (SER <= ub) )
-            # if idx == (nLevels - 1):
-            #     truth_table_indices = ( (SER >= lb) & (SER <= ub) )
-            # else:
-            #     truth_table_indices = ( (SER > lb) & (SER <= ub) )
             SERmap[truth_table_indices] = idx + 1
             
         # Add the last element of the interval that makes MaxSER < SER:
@@ -1567,22 +1568,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         idx = nLevels
         if idx == 0:
             SERmap[SER > 0.0] = 1
-        # else:
-            # JU 30/07/2024: Check whether this must be 0 or idx+1.
-            # SERmap[SER > serMapDictionary['levelThreshold']['UB'][-1]] =  0 # idx + 1
+
         SERmap *= base_mask
-        
-        # Debug 30/07/2024
-        print(''.join(['§']*100))
-        print('SER map stats:')
-        print(''.join(['-']*50))
-        for indx, (legend, colourmap) in enumerate(zip(serMapDictionary['legend'], 
-                                          serMapDictionary['colourMap'])):
-            print(f'{legend} ({indx}:{colourmap}): {np.count_nonzero(SERmap==(indx))}');
-        print(''.join(['§']*100))
-
-        # end debug section 30/07/2024
-
         
         SERmapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = SERmap
         
@@ -1591,12 +1578,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         volumes_logic = slicer.modules.volumes.logic()
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
         # Import label map into a segmentation:
-        print('Import label map into a segmentation:')
-        print(maskVolumeSegmentationNode.GetSegmentation().GetSegmentIDs())
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)       
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
-        print('after...')
-        print(maskVolumeSegmentationNode.GetSegmentation().GetSegmentIDs())
 
 
         # FTV map label from SERmap:
@@ -1609,7 +1592,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             slicer.util.updateVolumeFromArray(tempSERVolumeNode, mapVolume)
             volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, labelMapVolumeNode, tempSERVolumeNode)
             maskVolumeSegmentationNode.GetSegmentation().AddEmptySegment(mapNameID)
-            print(mapNameID)
             mapSegmentID = vtk.vtkStringArray()
             mapSegmentID.InsertNextValue(mapNameID)
             slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelMapVolumeNode, maskVolumeSegmentationNode, mapSegmentID)
@@ -1709,32 +1691,31 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         FTVstats = [mapStats['FTV']['volume_cm3']['value'], mapStats['FTV']['voxel_count']['value']]
         ETVstats = [mapStats['ETV']['volume_cm3']['value'], mapStats['ETV']['voxel_count']['value']]
         
-        SERlegendCheck = [True]*len(serMapDictionary['legend'])
-        # Skip non SER values
-        SERlegendCheck[serMapDictionary['legend'].index('non SER')]=False
+        # Skip 'non SER' from legends
+        SERauxList = serMapDictionary['legend'].copy()
+        SERauxList.pop(SERauxList.index('non SER'))
+        SERlegendCheck = [True]*len(SERauxList)
 
         for segment_iID in maskSegmentations.GetSegmentIDs():
             segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
-            print(f'Mask Name: {segmentName}')
-            if segmentName in serMapDictionary['legend']:
-                print(f'Processing Mask {segmentName}...')
-                segmentPos = serMapDictionary['legend'].index(segmentName)
+            if segmentName in SERauxList:
+                segmentPos = SERauxList.index(segmentName)
                 segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
                 nameColumn.InsertValue(segmentPos, segmentName)
                 volumeColumn.InsertValue(segmentPos, np.round(segmentStats['volume_cm3']['value'],3))
                 distColumn.InsertValue(segmentPos, np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2))
                 SERlegendCheck[segmentPos] = False
                 
-        for idx in range(len(serMapDictionary['legend'])):
+        for idx in range(len(SERauxList)):
             if SERlegendCheck[idx] :
-                nameColumn.InsertValue(idx, serMapDictionary['legend'][idx])
+                nameColumn.InsertValue(idx, SERauxList[idx])
                 volumeColumn.InsertValue(idx, np.nan)
                 distColumn.InsertValue(idx, np.nan)
         
-        
-        nameColumn.InsertValue(len(serMapDictionary['legend']), 'FTV (Functional Tumour Volume)')
-        volumeColumn.InsertValue(len(serMapDictionary['legend']), np.round(FTVstats[0],3))
-        distColumn.InsertValue(len(serMapDictionary['legend']), np.round(100 * FTVstats[1]/ETVstats[1], 2))
+        # Add the FTV stats at the end of list
+        nameColumn.InsertNextValue('FTV (Functional Tumour Volume)')
+        volumeColumn.InsertNextValue(np.round(FTVstats[0],3))
+        distColumn.InsertNextValue(np.round(100 * FTVstats[1]/ETVstats[1], 2))
 
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
