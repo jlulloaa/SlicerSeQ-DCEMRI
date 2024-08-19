@@ -662,8 +662,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def goToSequenceRegistration(self) -> None:
         
         # Warn that it will move away from the module
-        warnText = "This will take you to another module.\nTo come back, go to Modules -> Quantification -> Parameteric DCE-MRI"
-        ok = slicer.util.confirmOkCancelDisplay(warnText, windowTitle="WARNING")
+        warnText = "If the extension 'SEQUENCE REGISTRATION' is installed, it will leave this module.\n\nTo come back here, go to:\nModules -> Quantification -> Parameteric DCE-MRI"
+        ok = slicer.util.confirmOkCancelDisplay(warnText, windowTitle="WARNING - Leaving this module")
         
         if ok:
             slicer.util.selectModule("SequenceRegistration")
@@ -980,14 +980,11 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.colourTableNode.SetNamesInitialised(True) # prevent automatic color name generation
 
         for idx, (legend, [r,g,b,a]) in enumerate(self.SERsegmentsLabels['colourMap'].items()):
-            print(f'Index: {idx};\t Legend: {legend}\t Colour:{[r,g,b,a]}')
             success = self.colourTableNode.SetColor(idx, legend, r, g, b, a)
 
             if success:
                 logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
-        
-        print('finish setup Colour Table')
-    
+            
         
     def setSERColourMapDict(self, update=False, serUpperThreshold=None):
 
@@ -1290,7 +1287,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # SegmentStatistics.SegmentStatisticsLogic().getParameterNode().GetParameterNames()
 
         import SegmentStatistics
-        print(f'Analysing Segment: {segmentID}')
         segStatLogic = SegmentStatistics.SegmentStatisticsLogic()
         segStatLogic.getParameterNode().SetParameter("Segmentation", volumeMaskNode.GetID())
         segStatLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.obb_origin_ras.enabled",str(True))
@@ -1475,7 +1471,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         label = slicer.util.arrayFromSegmentBinaryLabelmap(maskVolumeSegmentationNode, segmentNodeID)
         if not label.any():
             # the selected mask is empty --> use the ROI markup box only
-            # print(f'Label Map is empty. Using the ROI markup box')
             # Get ROI box as nd binary array:
             voi_mask = np.zeros((nz, ny, nx))
             voi_mask[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = 1
