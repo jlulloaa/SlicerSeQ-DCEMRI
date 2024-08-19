@@ -25,7 +25,6 @@
 
 # Overview
 
- A brief introduction to the \href{https://github.com/jlulloaa/parametricDCEMRI}{slicerDCEMRI} extension, its purpose, and the motivation behind its development...
 
 Slicer Extension to derive semi-quantitative parametric maps from signal intensity analysis of DCE-MRI datasets
 
