@@ -4,11 +4,13 @@
 </h1>
 <h2 align="center">Extension for <a href="https://slicer.org" target="_blank">3D Slicer</a></h2>
 
-![GitHub top language](https://img.shields.io/github/languages/top/jlulloaa/SlicerSemiQuantDCEMRI)
-![GitHub repo size](https://img.shields.io/github/repo-size/jlulloaa/SlicerSemiQuantDCEMRI)
-![GitHub forks](https://img.shields.io/github/forks/jlulloaa/SlicerSemiQuantDCEMRI)
-![GitHub Repo stars](https://img.shields.io/github/stars/jlulloaa/SlicerSemiQuantDCEMRI)
-![GitHub License](https://img.shields.io/github/license/jlulloaa/SlicerSemiQuantDCEMRI)
+<p align="center">
+<img alt="GitHub top language" src="https://img.shields.io/github/languages/top/jlulloaa/SlicerSemiQuantDCEMRI">
+<img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/jlulloaa/SlicerSemiQuantDCEMRI">
+<img alt="GitHub License" src="https://img.shields.io/github/license/jlulloaa/SlicerSemiQuantDCEMRI">
+<img alt="GitHub forks" src="https://img.shields.io/github/forks/jlulloaa/SlicerSemiQuantDCEMRI">
+<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/jlulloaa/SlicerSemiQuantDCEMRI">
+</p>
 
 <p align="center">
   <a href="#overview">Overview</a> •
