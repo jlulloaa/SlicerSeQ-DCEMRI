@@ -10,7 +10,7 @@ set(EXTENSION_CONTRIBUTORS "Jose L. Ulloa (iSANDEx Ltd.), Muhammad Qadir (Austin
 set(EXTENSION_DESCRIPTION "Slicer Extension to derive non-PK parametric maps from signal intensity analysis of DCE-MRI datasets")
 set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/parametricDCEMRI.png")
 set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/parametricDCEMRI/Screenshots/1.png")
-set(EXTENSION_DEPENDS ["SequenceRegistration"]) #"NA") # Specified as a list or "NA" if no dependencies
+set(EXTENSION_DEPENDS "NA") #["SequenceRegistration"]) #"NA") # Specified as a list or "NA" if no dependencies
 
 #-----------------------------------------------------------------------------
 # Extension dependencies
