@@ -1,3 +1,4 @@
+<base target="_blank">
 <h1 align="center">
   Semi-Quantitative DCE-MRI parameters estimation
   <br>
