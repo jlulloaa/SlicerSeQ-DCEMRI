@@ -1123,7 +1123,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
         if labelVolume is not None:
             colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
-            # colorLegendDisplayNode.ScalarVisibilityOn()
+            colorLegendDisplayNode.ScalarVisibilityOn()
             colorLegendDisplayNode.SetVisibility(True)
             colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
         
