@@ -38,7 +38,7 @@ Semi-quantitative DCE-MRI refers to the analysis of DCE-MRI data using metrics t
 The [SeQ-DCEMRI] Slicer extension is based on the three time-point (3TP) analysis method to calculate the FTV [[2](#2),[3](#3)]. It offers flexibility in selecting the pre-contrast, early and late post-contrast time-points, and allows for optimising FTV measurements by modifying the PE and SER thresholds[[4]](#4).
 
 [SeQ-DCEMRI] uses the Slicer [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html) module to manage 4D datasets. It can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. 
-If the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it gives the option to use it to register the dataset prior to the analysis.
+If the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it also gives the option to use it to register the dataset prior to the analysis.
 
 <img alt="Sequence Registration" src="docs/imgs/screenshot002.png">
 
