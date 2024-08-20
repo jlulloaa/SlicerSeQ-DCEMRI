@@ -21,6 +21,7 @@
   <a href="#example-of-use">Example of Use</a> •
   <a href="#acknowledgments">Acknowledgments</a> •
   <a href="#license-information">License</a> •
+  <a href="#references">References</a> •
 </p>
 
 <img alt="Welcome Page Screenshot" src="docs/imgs/screenshot001.png"> </a>
@@ -54,7 +55,7 @@ This project has been supported by ...
 
 This project is licensed under the terms of the [Slicer License](https://github.com/Slicer/Slicer/blob/master/License.txt)
 
-
+# References
 [^1]: Hylton, Nola M. and Blume, Jeffrey D. and Bernreuter, Wanda K. and Pisano, Etta D. and Rosen, Mark A. and Morris, Elizabeth A. and Weatherall, Paul T. and Lehman, Constance D. and Newstead, Gillian M. and Polin, Sandra and Marques, Helga S. and Esserman, Laura J. and Schnall, Mitchell D. (2012). Locally advanced breast cancer: MR imaging for prediction of response to neoadjuvant chemotherapy—results from ACRIN 6657/I-SPY TRIAL. [Radiology, 263(3), 663-672.](https://pubs.rsna.org/doi/10.1148/radiol.12110748)
 
 [^2]: Degani, Hadassa and Gusis, Vadim and Weinstein, Daphna and Fields, Scott and Strano, Shalom (1997). Mapping pathophysiological features of breast tumors by MRI at high spatial resolution. [Nature Medicine, 3(7), 780-782.](https://www.nature.com/articles/nm0797-780)
