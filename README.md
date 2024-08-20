@@ -82,8 +82,8 @@ Currently, this extension is under development and is not yet available in the [
 
 2. Process the sequence data
     1. Open the [SeQ-DCEMRI] GUI, if the input data is a sequence, it should appears in the drop-down list of the ```Inputs``` section
-    2. If you want to register the data prior to the analysis, click the ```Register Sequence``` to open the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module[^5][^6]
-    3. Define the Pre-Contrast, Early Post-Contrast and Late Post-Contrast time-points from the sliders in the ```Identify relevant timepoints```. These values define the 3 time-points (3TP) parameters required by the algorithm to calculate the PE and SER maps[^1]
+    2. If you want to register the data prior to the analysis, click the ```Register Sequence``` to open the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module[^1][^2]
+    3. Define the Pre-Contrast, Early Post-Contrast and Late Post-Contrast time-points from the sliders in the ```Identify relevant timepoints```. These values define the 3 time-points (3TP) parameters required by the algorithm to calculate the PE and SER maps[[1]](#1)
     3. When processing real data, it may be useful to display the subtraction image between the pre-contrast and any of the post-contrast images, which can be done in the ```Display Subtraction Image Volumes```
     4. By default, the software creates an empty segment mask (```Segment_1```), which can be modified manually by using the effects available in the [Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html).
           1. If the default mask is not modified, the software creates an ROI a that matches the markup box. 
@@ -92,7 +92,9 @@ Currently, this extension is under development and is not yet available in the [
     5. Select an image ```Background``` threshold to cut out pixels values in the 95th percentile that are below that threshold. This is intended to eliminate very low $T_1$ baseline values. This threshold is applied over the markup box in the pre-contrast image.
     6. Select the ```PE``` threshold to cut out PE values below that. PE is calculated from the pre-contrast and early post-contrast images (selected in the ```Identify relevant timepoints``` section) as follows[^1]:
        
-    $$PE = 100*{S(t_{early\ post-contrast}) - S(t_{pre-contrast}) \over S(t_{pre-contrast})}$$ 
+    ˋˋˋmath
+				PE = 100*{S(t_{early\ post-contrast}) - S(t_{pre-contrast}) \over S(t_{pre-contrast})}
+		ˋˋˋ
    
     8. Select whether to use a pre-defined SER range or a single value (**tbc**).
     9. Once all the parameters are set, click the button ```Click to Process``` to run the analysis.
