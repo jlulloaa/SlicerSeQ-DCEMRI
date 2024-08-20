@@ -35,7 +35,7 @@ class quantification(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("Parametric DCE-MRI")
+        self.parent.title = _("Semi-Quantitative DCE-MRI")
         # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Quantification")]
         self.parent.dependencies = [] # ["SequenceRegistration"]  # TODO: add here list of module names that this module requires
@@ -43,8 +43,8 @@ class quantification(ScriptedLoadableModule):
         # TODO: update with short description of the module and a link to online module documentation
         # _() function marks text as translatable to other languages
         self.parent.helpText = _("""
-Slicer Extension to derive non-PK parametric maps from signal intensity analysis of DCE-MRI datasets. 
-For up-to-date user guide, go to <a href="https://gthub.com/jlulloaa/..."> official GitHub repository </a>.
+Slicer Extension to derive semi-quantitative parameters from DCE-MRI datasets. 
+For up-to-date user guide, go to the <a href="https://github.com/jlulloaa/SlicerSemiQuantDCEMRI"> official GitHub repository </a>.
 """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""

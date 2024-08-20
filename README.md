@@ -2,14 +2,14 @@
   Semi-Quantitative DCE-MRI parameters estimation
   <br>
 </h1>
-<h2 align="center">Extension for <a href="https://slicer.org" target="_blank">3D Slicer</a></h2>
+<h2 align="center">SlicerSemiQuantDCEMRI Extension for <a href="https://slicer.org" target="_blank">3D Slicer</a></h2>
 
 <p align="center">
-<img alt="GitHub top language" src="https://img.shields.io/github/languages/top/jlulloaa/SlicerSemiQuantDCEMRI">
-<img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/jlulloaa/SlicerSemiQuantDCEMRI">
-<img alt="GitHub License" src="https://img.shields.io/github/license/jlulloaa/SlicerSemiQuantDCEMRI">
-<img alt="GitHub forks" src="https://img.shields.io/github/forks/jlulloaa/SlicerSemiQuantDCEMRI">
-<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/jlulloaa/SlicerSemiQuantDCEMRI">
+<img alt="GitHub top language" src="https://img.shields.io/github/languages/top/jlulloaa/SlicerSemiQuantDCEMRI?style=plastic">
+<img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/jlulloaa/SlicerSemiQuantDCEMRI?color=yellow&style=plastic">
+<img alt="GitHub License" src="https://img.shields.io/github/license/jlulloaa/SlicerSemiQuantDCEMRI?style=plastic">
+<img alt="GitHub forks" src="https://img.shields.io/github/forks/jlulloaa/SlicerSemiQuantDCEMRI?style=social">
+<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/jlulloaa/SlicerSemiQuantDCEMRI?style=social">
 </p>
 
 <p align="center">
@@ -21,14 +21,14 @@
   <a href="#example-of-use">Example of Use</a> •
   <a href="#acknowledgments">Acknowledgments</a> •
   <a href="#license-information">License</a> •
+  <a href="#references">References</a>
 </p>
 
 <img alt="Welcome Page Screenshot" src="docs/imgs/screenshot001.png"> </a>
 
 # Overview
 
-
-Slicer Extension to derive semi-quantitative parametric maps from signal intensity analysis of DCE-MRI datasets
+SlicerSemiQuantDCEMRI is a slicer extension created to derive semi-quantitative parametric maps from signal intensity analysis of DCE-MRI datasets. 
 
 This extension leverages the use of [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html). Hence, it can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. Furthermore, if the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, there is an option to register the dataset prior to the analysis. 
 
