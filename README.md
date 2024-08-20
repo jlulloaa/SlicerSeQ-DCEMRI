@@ -38,7 +38,7 @@ The [SeQ-DCEMRI] Slicer extension is based on the three time-point (3TP) analysi
 
 
 # Comparison with [Breast DCE-MRI FTV]
-[SeQ-DCEMRI] is based on the [Breast DCE-MRI FTV] Slicer extension. The algorithms to calculate the SER and FTV parameters are equivalent, but we have simplified its implementation by leveraging the use of [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html){:target="_blank"} to manage 4D datasets, hence, it can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. Furthermore, if the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it gives the option to register the dataset prior to the analysis.
+[SeQ-DCEMRI] is based on the [Breast DCE-MRI FTV] Slicer extension. The algorithms to calculate the SER and FTV parameters are equivalent, but we have simplified its implementation by leveraging the use of [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html) to manage 4D datasets, hence, it can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. Furthermore, if the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it gives the option to register the dataset prior to the analysis.
 
 By embedding the [Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html) into the [SeQ-DCEMRI] GUI, the user can define a precise region-of-interest (ROI) covering the tumour tissue and excluding non-tumour areas. 
 
