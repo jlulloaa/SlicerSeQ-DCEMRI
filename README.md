@@ -38,7 +38,7 @@ The [SeQ-DCEMRI] Slicer extension is based on the three time-point (3TP) analysi
 
 
 # Comparison with [Breast DCE-MRI FTV]
-[SeQ-DCEMRI] is based on the [Breast DCE-MRI FTV] Slicer extension. The algorithms to calculate the SER and FTV parameters are equivalent, but we have simplified its implementation by leveraging the use of [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html) to manage 4D datasets, hence, it can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. Furthermore, if the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it gives the option to register the dataset prior to the analysis.
+[SeQ-DCEMRI] is based on the [Breast DCE-MRI FTV] Slicer extension. The algorithms to calculate the SER and FTV parameters are equivalent, but we have simplified its implementation by leveraging the use of [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html){:target="_blank"} to manage 4D datasets, hence, it can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. Furthermore, if the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it gives the option to register the dataset prior to the analysis.
 
 By embedding the [Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html) into the [SeQ-DCEMRI] GUI, the user can define a precise region-of-interest (ROI) covering the tumour tissue and excluding non-tumour areas. 
 
@@ -64,6 +64,6 @@ This project is licensed under the terms of the [Slicer License](https://github.
 
 [^4]: Musall, Benjamin C. and Abdelhafez, Abeer H. and Adrada, Beatriz E. and Candelaria, Rosalind P. and Mohamed, Rania M.M. and Boge, Medine and Le-Petross, Huong and Arribas, Elsa and Lane, Deanna L. and Spak, David A. and Leung, Jessica W.T. and Hwang, Ken-Pin and Son, Jong Bum and Elshafeey, Nabil A. and Mahmoud, Hagar S. and Wei, Peng and Sun, Jia and Zhang, Shu and White, Jason B. and Ravenberg, Elizabeth E. and Litton, Jennifer K. and Damodaran, Senthil and Thompson, Alastair M. and Moulder, Stacy L. and Yang, Wei T. and Pagel, Mark D. and Rauch, Gaiane M. and Ma, Jingfei (2021). Functional Tumor Volume by Fast Dynamic Contrast-Enhanced MRI for Predicting Neoadjuvant Systemic Therapy Response in Triple-Negative Breast Cancer. [Journal of Magnetic Resonance Imaging, 54(1), 251-260.](https://onlinelibrary.wiley.com/doi/abs/10.1002/jmri.27557)
 
-[SeQ-DCEMRI]: <a href="https://github.com/jlulloaa/SlicerSemiQuantDCEMRI" target="_blank"></a>
+[SeQ-DCEMRI]: https://github.com/jlulloaa/SlicerSemiQuantDCEMRI
 
 [Breast DCE-MRI FTV]: https://github.com/rnadkarni2/SlicerBreast_DCEMRI_FTV
