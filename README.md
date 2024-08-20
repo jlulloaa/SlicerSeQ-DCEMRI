@@ -43,6 +43,8 @@ The [SeQ-DCEMRI] Slicer extension is based on the three time-point (3TP) analysi
 By embedding the [Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html) into the [SeQ-DCEMRI] GUI, the user can define a precise region-of-interest (ROI) covering the tumour tissue and excluding non-tumour areas. 
 
 # Installation and Setup
+[SeQ-DCEMRI] has been tested in 3D Slicer version 5.6.2 r32448 on MacOS (Sonoma 14.6.1, Apple M2 Max) and Windows 11.
+
 
 # User Guide
 
