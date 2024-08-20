@@ -402,3 +402,4 @@ FodyWeavers.xsd
 **/*.DS_Store
 quantification/.DS_Store
 build
+.vscode/extensions.json
