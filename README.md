@@ -96,7 +96,7 @@ Currently, this extension is under development and is not yet available in the [
 				PE[\%] = 100*{S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{PRE-contrast})}
     $$
    
-    8. Select whether to use a pre-defined SER range or a single value. The pre-defined range is consistent with the values used by Li *et al.* [[5]](#5). By adding the option to select a single threshold value, it is possible to iterate over the results to find an optimum FTV, as reported by [[4]](#4). When selecting a single threshold, **SERth**, 3 intervals are defined. 0 < SER ≤ SERth;  is calculated from the 3TP images: pre-contrast, early and late post-contrast as follows[^1]:
+    8. Select whether to use a pre-defined SER range or a single value. The pre-defined range is consistent with the values used by Li *et al.* [[5]](#5). By adding the option to select a single threshold value, it is possible to iterate over the results to find an optimum FTV, as reported by [[4]](#4). When selecting a single threshold, $$SER_{THRESH}$$, 3 intervals are defined. $$0 < SER ≤ SER_{THRESH}$$;  is calculated from the 3TP images: pre-contrast, early and late post-contrast as follows[^1]:
     $$SER = {S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{LATE\ post-contrast}) - S(t_{PRE-contrast})}$$
 
     9. Once all the parameters are set, click the button ```Click to Process``` to run the analysis.
