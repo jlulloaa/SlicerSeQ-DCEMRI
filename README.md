@@ -21,7 +21,7 @@
   <a href="#example-of-use">Example of Use</a> •
   <a href="#acknowledgments">Acknowledgments</a> •
   <a href="#license-information">License</a> •
-  <a href="#references-and-footnotes">References</a>
+  <a href="#references">References</a>
 </p>
 
 <img alt="Welcome Page Screenshot" src="docs/imgs/screenshot001.png"> </a>
