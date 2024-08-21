@@ -15,10 +15,9 @@
 <p align="center">
   <a href="#overview">Overview</a> •
   <a href="#key-features">Key Features</a> •
-  <a href="#comparison-with-slicerftvdcemri">Comparison with Slicer FTV DCEMRI</a> •
   <a href="#installation-and-setup">Installation and Setup</a> •
   <a href="#user-guide">User Guide</a> •
-  <a href="#example-of-use">Example of Use</a> •
+  <a href="#limitations-and-future-extensions">Future Work</a> •
   <a href="#acknowledgments">Acknowledgments</a> •
   <a href="#license-information">License</a> •
   <a href="#references">References</a>
@@ -32,12 +31,12 @@ Jump straight into the [User Guide](#user-guide)
 
 [SeQ-DCEMRI] is a slicer extension created to derive semi-quantitative parametric maps from signal intensity analysis of Dynamic Contrast-Enhanced Magnetic Resonance Imaging (DCE-MRI) datasets. 
 
-Semi-quantitative DCE-MRI refers to the analysis of DCE-MRI data using metrics that summarize the enhancement patterns of tissues over time after contrast injection. It focuses on relative signal changes, such as the rate and extent of contrast uptake and washout, rather than pharmacokinetic models derived from $$T_1$$ quantitative measurements. Common parameters include **Peak Enhancement** (PE), which measures the maximum signal increase respect to pre-contrast baseline signal levels, **Signal Enhancement Ratio** (SER), which compares the signal intensity at different time points to infer tissue vascularity and permeability, and **Functional Tumour Volume** (FTV), which refers to the volume of tumor tissue that shows specific patterns of contrast enhancement, typically associated with active tumor regions. The semi-quantitative approach offers a practical and less complex way to evaluate tissue behavior, particularly in oncology, without requiring detailed pharmacokinetic (PK) modelling [[1]](#1).
+Semi-quantitative DCE-MRI refers to the analysis of DCE-MRI data using metrics that summarize the enhancement patterns of tissues over time after contrast injection. It focuses on relative signal changes, such as the rate and extent of contrast uptake and washout, rather than pharmacokinetic models derived from $$T_1$$ quantitative measurements. Common parameters include **Peak Enhancement** (PE), which measures the maximum signal increase with respect to pre-contrast baseline signal levels, **Signal Enhancement Ratio** (SER), which compares the signal intensity at different time points to infer tissue vascularity and permeability, and **Functional Tumour Volume** (FTV), which refers to the volume of tumour tissue that shows specific patterns of contrast enhancement, typically associated with active tumour regions. The semi-quantitative approach offers a practical and less complex way to evaluate tissue behaviour, particularly in oncology, without requiring detailed pharmacokinetic (PK) modelling [[1]](#1).
 
 # Key Features
-The [SeQ-DCEMRI] Slicer extension is based on the three time-point (3TP) analysis method to calculate the FTV [[2](#2),[3](#3)]. It offers flexibility in selecting the pre-contrast, early and late post-contrast time-points, and allows for optimising FTV measurements by modifying the PE and SER thresholds[[4]](#4).
+The [SeQ-DCEMRI] Slicer extension is based on the three time-point (3TP) analysis method to calculate the FTV [[2](#2),[3](#3)]. It offers flexibility in selecting the pre-contrast, early and late post-contrast time points, and allows for optimising FTV measurements by modifying the PE and SER thresholds[[4]](#4).
 
-[SeQ-DCEMRI] uses the Slicer [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html) module to manage 4D datasets. It can process any DCEMRI dataset that can be loaded as, or combined into, a sequence. 
+[SeQ-DCEMRI] uses the Slicer [Sequences](https://slicer.readthedocs.io/en/latest/user_guide/modules/sequences.html) module to manage 4D datasets. It can process any DCEMRI dataset that can be loaded, or combined into a sequence. 
 If the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module is installed, it also gives the option to use it to register the dataset prior to the analysis.
 
 <img alt="Sequence Registration" src="docs/imgs/screenshot002.png">
@@ -64,7 +63,7 @@ The FTV is reported in the form of a table and a colour-labelled image overlaid 
 <img alt="Output maps" src="docs/imgs/screenshot007.png">
 
 ## Comparison with [Breast DCE-MRI FTV]
-The algorithms used by [SeQ-DCEMRI] are equivalente to those used by the [Breast DCE-MRI FTV] Slicer extension.  Although we don't provide the option to add *omit regions*, we offer the ability to manually delineate a ROI to more precisely derive the FTV parameters. Like the [Breast DCE-MRI FTV], the background signal threshold is calculated over the markup box, but the PE, SER and FTV parameters are calculated over the segment mask drawn as ROI (see the [User Guide](#user-guide) for details).
+The algorithms used by [SeQ-DCEMRI] are equivalent to those used by the [Breast DCE-MRI FTV] Slicer extension.  Although we don't provide the option to add *omit regions*, our extension offers the ability to manually delineate an ROI to more precisely derive the FTV parameters. Like the [Breast DCE-MRI FTV], the background signal threshold is calculated over the markup box, but the PE, SER and FTV parameters are calculated over the segment mask drawn as ROI (see the [User Guide](#user-guide) for details).
 
 # Installation and Setup
 The earliest 3D Slicer version compatible with [SeQ-DCEMRI] is 5.6.1. It has been tested with versions 5.6.1, 5.6.2 (latest stable release r32448) on MacOS (Sonoma 14.6.1) and Windows 11, and 5.7.0 (preview release r32969) on MacOS (Sonoma 14.6.1).
@@ -81,18 +80,18 @@ Currently, this extension is under development and is not yet available in the [
 <img alt="Add DICOM data" src="docs/imgs/screenshot008.gif">
 
 2. Process the sequence data
-    1. Open the [SeQ-DCEMRI] GUI, if the input data is a sequence, it should appears in the drop-down list of the ```Inputs``` section
+    1. Open the [SeQ-DCEMRI] GUI, if the input data is a sequence, it should appear in the drop-down list of the ```Inputs``` section
     2. If you want to register the data prior to the analysis, click the ```Register Sequence``` to open the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module[^1] [^2]
-    3. Define the Pre-Contrast, Early Post-Contrast and Late Post-Contrast time-points from the sliders in the ```Identify relevant timepoints```. These values define the 3 time-points (3TP) parameters required by the algorithm to calculate the PE and SER maps[[1]](#1)
+    3. Define the Pre-Contrast, Early Post-Contrast and Late Post-Contrast time points from the sliders in the ```Identify relevant timepoints```. These values define the 3 time-points (3TP) parameters required by the algorithm to calculate the PE and SER maps[[1]](#1)
     3. When processing real data, it may be useful to display the subtraction image between the pre-contrast and any of the post-contrast images, which can be done in the ```Display Subtraction Image Volumes```
     4. By default, the software creates an empty segment mask (```Segment_1```), which can be modified manually by using the effects available in the [Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html).
-          1. If the default mask is not modified, the software creates an ROI a that matches the markup box. 
-          2. If multiples segmentations are created, you can select which one to use for the analysis in the drop down list in the section ```Parameters```
+          1. If the default mask is not modified, the software creates an ROI that matches the markup box. 
+          2. If multiple segmentations are created, you can select which one to use for the analysis in the drop-down list in the section ```Parameters```
           3. Only one segmentation mask is used for analysis
-    5. Select an image ```Background``` threshold to cut out pixels values in the 95th percentile that are below that threshold. This is intended to eliminate very low $T_1$ baseline values. This threshold is applied over the markup box in the pre-contrast image.
+    5. Select an image ```Background``` threshold to cut out pixel values in the 95th percentile that are below that threshold. This is intended to eliminate very low $T_1$ baseline values. This threshold is applied over the markup box in the pre-contrast image.
     6. Select the ```PE``` threshold to cut out PE values below that. PE is calculated from the pre-contrast and early post-contrast images (selected in the ```Identify relevant timepoints``` section) as follows[^1]:
        
-    $$PE[\%] = 100*{S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{PRE-contrast})}$$
+    $$PE[\\%] = 100*{S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{PRE-contrast})}$$
    
     8. Select whether to use a pre-defined SER range or a single value. The pre-defined range is consistent with the values used by Li *et al.* [[5]](#5). By adding the option to select a single threshold value, it is possible to iterate over the results to find an optimum FTV, as reported by [[4]](#4). When selecting a single threshold, $$SER_{THRESH}$$, 3 intervals are defined. $$0 < SER ≤ SER_{THRESH}$$;  is calculated from the 3TP images: pre-contrast, early and late post-contrast as follows[^1]:
 
@@ -102,19 +101,19 @@ Currently, this extension is under development and is not yet available in the [
 
 <img alt="Process sequence" src="docs/imgs/screenshot009.gif">
 
-3. Finally, the results can be reviewed by scrolling through the slices or time-points. The analysisi can also be re-run by modifying any of the parameters in the ```Parameters``` section.
+3. The results can be reviewed by scrolling through the slices or time-points. The analysis can also be re-run by modifying any parameters in the ```Parameters``` section.
 
 <img alt="Review the Results" src="docs/imgs/screenshot010.gif">
 
     
 # Limitations and future extensions
-* To avoid duplicated extensions, we suggest to merge this one with the existing [Breast DCE-MRI FTV] module. One of the main advantages in doing that would be the ability to generate PDF reports with the results, while allowing flexibility in the input data.
-* Currently, there are conflicts with the segmentation masks and markup box when processing multiple datasets. The current workaround is to close the scene and/or restart slicer to process a different dataset. 
-* When processing registered dataset, the timing information is lost, so there is no consistency between the pre-registered (raw) images time-points and the registered time-points, as it gets assigned the default 1min sampling time. This can be solved by transferring the time information when registering the data.
+* To avoid duplicated extensions, we suggest merging this one with the existing [Breast DCE-MRI FTV] module. One of the main advantages of doing that would be the ability to generate PDF reports with the results while allowing flexibility in the input data.
+* Currently, there are conflicts with the segmentation masks and markup boxes when processing multiple datasets. The current workaround is to close the scene and/or restart 3D Slicer to process a different dataset. 
+* When processing the registered dataset, the timing information is lost, so there is no consistency between the pre-registered (raw) image time points and the registered time points, as it gets assigned the default 1.2min sampling time. This can be solved by transferring the time information when registering the data.
 
 
 # Help and Support
-We'll be more than happy to get any feedback, so please feel free to create an issue to let us know any comment/question/bug/etc. about this extension.
+We'll be more than happy to get any feedback, so please feel free to create an issue to let us know any comments/questions/bugs/etc. about this extension.
 
 # Acknowledgments
 This project has been supported by ...
