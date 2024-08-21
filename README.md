@@ -72,7 +72,7 @@ Currently, this extension is under development and is not yet available in the [
 
 # User Guide
 1. Ensure the extension is installed by following the [Installation and Setup](#installation-and-setup) instructions.
-2. Add the sample dataset to the local database. The sample data contains a synthetic phantom that is described [here](<Add link to phantom definition>):
+2. Add the sample dataset to the local database. The sample data contains a synthetic FTV phantom [(work in progress)](https://github.com/iSANDEx/dce-dro-python/blob/main/FTV_digitalPhantom.ipynb):
     1. Download the sample datasets from [here](https://drive.google.com/file/d/19UO0Jmt2RKkdxkK6l7huR5LKuQg8-WKw/view)
     2. Add the sample data to the DICOM database
     3. Load the image data into the scene
