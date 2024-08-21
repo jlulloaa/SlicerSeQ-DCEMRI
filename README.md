@@ -92,9 +92,7 @@ Currently, this extension is under development and is not yet available in the [
     5. Select an image ```Background``` threshold to cut out pixels values in the 95th percentile that are below that threshold. This is intended to eliminate very low $T_1$ baseline values. This threshold is applied over the markup box in the pre-contrast image.
     6. Select the ```PE``` threshold to cut out PE values below that. PE is calculated from the pre-contrast and early post-contrast images (selected in the ```Identify relevant timepoints``` section) as follows[^1]:
        
-    $$
-				PE[\%] = 100*{S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{PRE-contrast})}
-    $$
+    $$PE[\%] = 100*{S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{PRE-contrast})}$$
    
     8. Select whether to use a pre-defined SER range or a single value. The pre-defined range is consistent with the values used by Li *et al.* [[5]](#5). By adding the option to select a single threshold value, it is possible to iterate over the results to find an optimum FTV, as reported by [[4]](#4). When selecting a single threshold, $$SER_{THRESH}$$, 3 intervals are defined. $$0 < SER ≤ SER_{THRESH}$$;  is calculated from the 3TP images: pre-contrast, early and late post-contrast as follows[^1]:
 
