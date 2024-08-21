@@ -82,7 +82,7 @@ Currently, this extension is under development and is not yet available in the [
 
 2. Process the sequence data
     1. Open the [SeQ-DCEMRI] GUI, if the input data is a sequence, it should appears in the drop-down list of the ```Inputs``` section
-    2. If you want to register the data prior to the analysis, click the ```Register Sequence``` to open the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module[^1][^2]
+    2. If you want to register the data prior to the analysis, click the ```Register Sequence``` to open the [Sequence Registration](https://github.com/moselhy/SlicerSequenceRegistration#volume-sequence-registration-for-3d-slicer) module[^1] [^2]
     3. Define the Pre-Contrast, Early Post-Contrast and Late Post-Contrast time-points from the sliders in the ```Identify relevant timepoints```. These values define the 3 time-points (3TP) parameters required by the algorithm to calculate the PE and SER maps[[1]](#1)
     3. When processing real data, it may be useful to display the subtraction image between the pre-contrast and any of the post-contrast images, which can be done in the ```Display Subtraction Image Volumes```
     4. By default, the software creates an empty segment mask (```Segment_1```), which can be modified manually by using the effects available in the [Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html).
