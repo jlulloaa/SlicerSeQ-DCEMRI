@@ -92,9 +92,9 @@ Currently, this extension is under development and is not yet available in the [
     5. Select an image ```Background``` threshold to cut out pixels values in the 95th percentile that are below that threshold. This is intended to eliminate very low $T_1$ baseline values. This threshold is applied over the markup box in the pre-contrast image.
     6. Select the ```PE``` threshold to cut out PE values below that. PE is calculated from the pre-contrast and early post-contrast images (selected in the ```Identify relevant timepoints``` section) as follows[^1]:
        
-    ˋˋˋmath
-				PE = 100*{S(t_{early\ post-contrast}) - S(t_{pre-contrast}) \over S(t_{pre-contrast})}
-		ˋˋˋ
+    $$
+				PE[\%] = 100*{S(t_{early\ post-contrast}) - S(t_{pre-contrast}) \over S(t_{pre-contrast})}
+    $$
    
     8. Select whether to use a pre-defined SER range or a single value (**tbc**).
     9. Once all the parameters are set, click the button ```Click to Process``` to run the analysis.
