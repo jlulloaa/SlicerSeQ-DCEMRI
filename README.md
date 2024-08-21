@@ -73,7 +73,7 @@ Currently, this extension is under development and is not yet available in the [
 
 # User Guide
 1. Ensure the extension is installed by following the [Installation and Setup](#installation-and-setup) instructions.
-2. Add the sample dataset to the local database:
+2. Add the sample dataset to the local database. The sample data contains a synthetic phantom that is described [here](<Add link to phantom definition>):
     1. Download the sample datasets from [here](https://drive.google.com/file/d/19UO0Jmt2RKkdxkK6l7huR5LKuQg8-WKw/view)
     2. Add the sample data to the DICOM database
     3. Load the image data into the scene
@@ -93,16 +93,32 @@ Currently, this extension is under development and is not yet available in the [
     6. Select the ```PE``` threshold to cut out PE values below that. PE is calculated from the pre-contrast and early post-contrast images (selected in the ```Identify relevant timepoints``` section) as follows[^1]:
        
     $$
-				PE[\%] = 100*{S(t_{early\ post-contrast}) - S(t_{pre-contrast}) \over S(t_{pre-contrast})}
+				PE[\%] = 100*{S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{PRE-contrast})}
     $$
    
-    8. Select whether to use a pre-defined SER range or a single value (**tbc**).
+    8. Select whether to use a pre-defined SER range or a single value. The pre-defined range is consistent with the values used by Li *et al.* [[5]](#5). By adding the option to select a single threshold value, it is possible to iterate over the results to find an optimum FTV, as reported by [[4]](#4). When selecting a single threshold, **SERth**, 3 intervals are defined. 0 < SER ≤ SERth;  is calculated from the 3TP images: pre-contrast, early and late post-contrast as follows[^1]:
+
+    $$
+				SER = {S(t_{EARLY\ post-contrast}) - S(t_{PRE-contrast}) \over S(t_{LATE\ post-contrast}) - S(t_{PRE-contrast})}
+    $$
+
     9. Once all the parameters are set, click the button ```Click to Process``` to run the analysis.
 
-3. Reviewing the results
+<img alt="Process sequence" src="docs/imgs/screenshot009.gif">
+
+3. Finally, the results can be reviewed by scrolling through the slices or time-points. The analysisi can also be re-run by modifying any of the parameters in the ```Parameters``` section.
+
+<img alt="Review the Results" src="docs/imgs/screenshot010.gif">
 
     
-# Example of Use
+# Limitations and future extensions
+* To avoid duplicated extensions, we suggest to merge this one with the existing [Breast DCE-MRI FTV] module. One of the main advantages in doing that would be the ability to generate PDF reports with the results, while allowing flexibility in the input data.
+* Currently, there are conflicts with the segmentation masks and markup box when processing multiple datasets. The current workaround is to close the scene and/or restart slicer to process a different dataset. 
+* When processing registered dataset, the timing information is lost, so there is no consistency between the pre-registered (raw) images time-points and the registered time-points, as it gets assigned the default 1min sampling time. This can be solved by transferring the time information when registering the data.
+
+
+# Help and Support
+We'll be more than happy to get any feedback, so please feel free to create an issue to let us know any comment/question/bug/etc. about this extension.
 
 # Acknowledgments
 This project has been supported by ...
@@ -119,6 +135,8 @@ This project is licensed under the terms of the [Slicer License](https://github.
 <a id="3">[3]</a> Furman-Haran, Edna and Degani, Hadassa (2002). Parametric Analysis of Breast MRI. [Journal of Computer Assisted Tomography, 26(3), 376-386.](https://journals.lww.com/jcat/abstract/2002/05000/parametric_analysis_of_breast_mri.12.aspx)
 
 <a id="4">[4]</a> Musall, Benjamin C. and Abdelhafez, Abeer H. and Adrada, Beatriz E. and Candelaria, Rosalind P. and Mohamed, Rania M.M. and Boge, Medine and Le-Petross, Huong and Arribas, Elsa and Lane, Deanna L. and Spak, David A. and Leung, Jessica W.T. and Hwang, Ken-Pin and Son, Jong Bum and Elshafeey, Nabil A. and Mahmoud, Hagar S. and Wei, Peng and Sun, Jia and Zhang, Shu and White, Jason B. and Ravenberg, Elizabeth E. and Litton, Jennifer K. and Damodaran, Senthil and Thompson, Alastair M. and Moulder, Stacy L. and Yang, Wei T. and Pagel, Mark D. and Rauch, Gaiane M. and Ma, Jingfei (2021). Functional Tumor Volume by Fast Dynamic Contrast-Enhanced MRI for Predicting Neoadjuvant Systemic Therapy Response in Triple-Negative Breast Cancer. [Journal of Magnetic Resonance Imaging, 54(1), 251-260.](https://onlinelibrary.wiley.com/doi/abs/10.1002/jmri.27557)
+
+<a id="5">[5]</a> Li, Wen and Arasu, Vignesh and Newitt, David C. and Jones, Ella F. and Wilmes, Lisa and Gibbs, Jessica and Kornak, John and Joe, Bonnie N. and Esserman, Laura J. and Hylton, Nola M. (2016). Effect of MR Imaging Contrast Thresholds on Prediction of Neoadjuvant Chemotherapy Response in Breast Can- cer Subtypes: A Subgroup Analysis of the ACRIN 6657/I-SPY 1 TRIAL. [Tomography, 2(4):378–387.](https://www.mdpi.com/2379-139X/2/4/378)
 
 # Footnotes
 
