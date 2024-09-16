@@ -6,7 +6,7 @@ project(SlicerSemiQuantDCEMRI)
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "https://github.com/jlulloaa/SlicerSemiQuantDCEMRI")
 set(EXTENSION_CATEGORY "Quantification")
-set(EXTENSION_CONTRIBUTORS "Jose L. Ulloa (iSANDEx Ltd.), Muhammad Qadir (Austin Health)")
+set(EXTENSION_CONTRIBUTORS "Jose L. Ulloa (iSANDEx Ltd.), Muhammad Ayyaz Qadir (Monash University, Austin Health)")
 set(EXTENSION_DESCRIPTION "Slicer Extension to derive semi-quantitative parameters from DCE-MRI datasets")
 set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/parametricDCEMRI.png")
 set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/parametricDCEMRI/Screenshots/1.png")
