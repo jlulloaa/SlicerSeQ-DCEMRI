@@ -39,7 +39,7 @@ class quantification(ScriptedLoadableModule):
         # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Quantification")]
         self.parent.dependencies = [] # ["SequenceRegistration"]  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["Jose L. Ulloa (ISANDEX LTD.), Muhammad Qadir (Austin Health)"] 
+        self.parent.contributors = ["Jose L. Ulloa (ISANDEX LTD.), Muhammad Ayyaz Qadir (Monash University, Austin Health)"] 
         # TODO: update with short description of the module and a link to online module documentation
         # _() function marks text as translatable to other languages
         self.parent.helpText = _("""
