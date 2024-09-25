@@ -133,6 +133,9 @@ class quantificationParameterNode:
     backgroundThreshold: Annotated[float, WithinRange(0.0, 100.0)] = 60.0
     signalEnhancementRatioThreshold: Annotated[float, WithinRange(0.0, 3.25)] = 1.4
 
+    # # JU - Checkbox to propagate the timings for any other sequence that hasn't DICOM metadata (assumes a single patient in the scene)
+    propagateTiming: bool = True
+
     # # JU - Simple Checkbox to control SER analysis:
     displaySERrange: bool = True
 
@@ -781,10 +784,12 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 # Get acquisition times from DICOM metadata (output in ms)
                 self.timeFrames = np.array(self._parameterNode.input4DVolume.GetAttribute("MultiVolume.FrameLabels").split(',')).astype(float)
             else:
-                nt = self._parameterNode.input4DVolume.GetNumberOfDataNodes()
+                if ( (self.timeFrames is None) or (not self._parameterNode.propagateTiming) ):
+                    
+                    nt = self._parameterNode.input4DVolume.GetNumberOfDataNodes()
                 
-                # normalise the time axis to nt = 1min = 60x10e3 [ms] to be consistent with the calculations  
-                self.timeFrames = np.linspace(0, nt*60.0*1.0e3, num=nt, endpoint=True)
+                    # normalise the time axis to nt = 1min = 60x10e3 [ms] to be consistent with the calculations  
+                    self.timeFrames = np.linspace(0, nt*60.0*1.0e3, num=nt, endpoint=True)
 
             logging.debug(f'Timeframe Labels: {self.timeFrames} (ms)')
             
