@@ -116,16 +116,41 @@
          <string>Identify relevant timepoints</string>
         </property>
         <property name="collapsed">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
         <layout class="QGridLayout" name="identifyTimepointsGridLayout">
-         <item row="0" column="0">
-          <widget class="QLabel" name="labelSelectPreContrast">
+         <item row="2" column="0">
+          <widget class="QLabel" name="labelSelectLatePostContrast">
            <property name="toolTip">
-            <string>Index of pre-contrast image</string>
+            <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
            </property>
            <property name="text">
-            <string>Pre-Contrast Index:</string>
+            <string>Late Post-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Select the index corresponding to the Early post-contrast image</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="pageStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>indicesDCE.earlyPostContrast</string>
            </property>
           </widget>
          </item>
@@ -160,65 +185,6 @@
            </property>
           </widget>
          </item>
-         <item row="0" column="2">
-          <widget class="QLabel" name="labelTimePreContrast">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="labelSelectEarlyPostContrast">
-           <property name="toolTip">
-            <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
-           </property>
-           <property name="text">
-            <string>Early Post-Contrast Index:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="ctkSliderWidget" name="indexSliderEarlyPostContrast">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="toolTip">
-            <string>Select the index corresponding to the Early post-contrast image</string>
-           </property>
-           <property name="decimals">
-            <number>0</number>
-           </property>
-           <property name="pageStep">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string>indicesDCE.earlyPostContrast</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2">
-          <widget class="QLabel" name="labelTimeEarlyPostContrast">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="labelSelectLatePostContrast">
-           <property name="toolTip">
-            <string>Index of the late post-contrast image (e.g. the last timepoint in the sequence)</string>
-           </property>
-           <property name="text">
-            <string>Late Post-Contrast Index:</string>
-           </property>
-          </widget>
-         </item>
          <item row="2" column="1">
           <widget class="ctkSliderWidget" name="indexSliderLatePostContrast">
            <property name="enabled">
@@ -244,10 +210,54 @@
            </property>
           </widget>
          </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelSelectEarlyPostContrast">
+           <property name="toolTip">
+            <string>Index of the early post-contrast image (e.g. the one immediately after contrast injection)</string>
+           </property>
+           <property name="text">
+            <string>Early Post-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QLabel" name="labelTimeEarlyPostContrast">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="labelSelectPreContrast">
+           <property name="toolTip">
+            <string>Index of pre-contrast image</string>
+           </property>
+           <property name="text">
+            <string>Pre-Contrast Index:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QLabel" name="labelTimePreContrast">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
          <item row="2" column="2">
           <widget class="QLabel" name="labelTimeLatePostContrast">
            <property name="text">
             <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QCheckBox" name="propagateTimingToggle">
+           <property name="text">
+            <string>Propagate Timings to any derived sequence</string>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>propagateTiming</string>
            </property>
           </widget>
          </item>
@@ -1420,6 +1430,22 @@
     <hint type="destinationlabel">
      <x>110</x>
      <y>270</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>quantification</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>propagateTimingToggle</receiver>
+   <slot>toggle()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>457</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>159</x>
+     <y>181</y>
     </hint>
    </hints>
   </connection>
