@@ -1530,10 +1530,14 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         kernel = np.ones((3,3,3))
         kernel[1,1,1] = 100
         
-        # JU - This convolution is suppossed to define the maximum over a neighbourhood, 
-        # but I'm not yet convinced it does that...
-        convbrmask = signal.convolve(base_mask, kernel, mode='same')
-        base_mask &= (convbrmask >= (100 + self.PIXEL_CONNECTIVITY))
+        # JU - This convolution defines the maximum over a neighbourhood. But, it is not what is suppossed to do, according to the 
+        #       reference literature.
+        #       As defined in the main references (see e.g. Arasu et al. 2011, Partridge et al. 2010, and Xiao et al. 2021),
+        #       peak PE and SER are defined as the highest mean over a 3x3x3 neighbourhood (or equivalently 8 contigous voxels).
+        #       Moreover, this is just to summarise the results, so it shouldn't be used for display purposes, instead, it is used at the end,
+        #       when reporting the results in the table. 
+        # convbrmask = signal.convolve(base_mask, kernel, mode='same')
+        # base_mask &= (convbrmask >= (100 + self.PIXEL_CONNECTIVITY))
 
         # Relevant for when adding a user-defined segmentation mask (e.g. Tumour_tissue)
         seg_points = np.where(base_mask)
@@ -1562,6 +1566,21 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)       
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
 
+        # JU - Here we calculated the peak PE and SER. First, we find the mean over a 3x3x3 neighbourhood, 
+        # and then get the max over them so we end up with a single value representing the peak PE and SER, 
+        # respectively:
+        mean_conv = np.ones((3,3,3))
+        mean_conv /= mean_conv.sum()
+        meanSERmap = signal.convolve(SERmap, mean_conv, mode='same')
+        meanPEmap = signal.convolve(PE, mean_conv, mode='same')
+        # Note that the convolution method to average a neighbourhood considers the values 0 when averaging (i.e. a=[1,0,1] ==> avg(a)=2/3)
+        
+        meanSERmap = meanSERmap[1::3, 1::3, 1::3] # This retains only the average over the 3x3x3 sub-matrix (i.e. where the kernel fits complete in the volume)
+        meanPEmap = meanPEmap[1::3, 1::3, 1::3]
+        print(meanSERmap)
+        peakSER = meanSERmap.max()
+        peakPE = meanPEmap.max()
+        
 
         # FTV map label from SERmap:
         mapVolumes = {'FTV': np.where(SERmap > serMapDictionary['SERthreshold'], 1.0, 0.0),
@@ -1693,7 +1712,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 volumeColumn.InsertValue(idx, np.nan)
                 distColumn.InsertValue(idx, np.nan)
         
-        # Add the FTV and ETV stats at the end of list
+        # Append the FTV and ETV stats at the end of list
         nameColumn.InsertNextValue('FTV (Functional Tumour Volume)')
         volumeColumn.InsertNextValue(np.round(FTVstats[0],3))
         distColumn.InsertNextValue(np.round(100 * FTVstats[1]/ETVstats[1], 2))
@@ -1702,6 +1721,15 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         volumeColumn.InsertNextValue(np.round(ETVstats[0],3))
         distColumn.InsertNextValue(np.round(100.0, 2))
 
+        # JU - Append the peak PE and SER values:
+        nameColumn.InsertNextValue('peak PE')
+        volumeColumn.InsertNextValue(np.round(peakPE,3))
+        distColumn.InsertNextValue(np.nan)
+
+        nameColumn.InsertNextValue('peak SER')
+        volumeColumn.InsertNextValue(np.round(peakSER,3))
+        distColumn.InsertNextValue(np.nan)
+        
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
 
