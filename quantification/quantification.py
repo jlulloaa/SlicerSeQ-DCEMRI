@@ -1494,10 +1494,12 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             # inputVolume4Darray = self.cropSequenceVolumeFromROI(inputVolume4Darray, referenceBoxROINode, tempReferenceVolumeNode)
             inputVolume4Darray = inputVolume4Darray[:, roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]]
             label = label[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]]
-                 
+        
         # Represent the data in terms of SER (S(t)/S0(t)). identifying S0 as the pre-contrast index:
         St0 = inputVolume4Darray[preContrastIndex, :, :, :]
-
+        # JU - add variables denoting the matrix size as they will be useful later in the code
+        [nrows, ncols, ndepth] = St0.shape
+         
         # The background threshold is defined from the masked section only:
         bckgrnd_thresh = (BKGRNDthreshold/100.0) * np.percentile(St0, 95)
 
@@ -1526,16 +1528,15 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         base_mask &= (SER >= 0.0)
 
         SER = np.where(base_mask, SER, 0)
-        
-        kernel = np.ones((3,3,3))
-        kernel[1,1,1] = 100
-        
+                
         # JU - This convolution defines the maximum over a neighbourhood. But, it is not what is suppossed to do, according to the 
         #       reference literature.
         #       As defined in the main references (see e.g. Arasu et al. 2011, Partridge et al. 2010, and Xiao et al. 2021),
         #       peak PE and SER are defined as the highest mean over a 3x3x3 neighbourhood (or equivalently 8 contigous voxels).
         #       Moreover, this is just to summarise the results, so it shouldn't be used for display purposes, instead, it is used at the end,
         #       when reporting the results in the table. 
+        # kernel = np.ones((3,3,3))
+        # kernel[1,1,1] = 100
         # convbrmask = signal.convolve(base_mask, kernel, mode='same')
         # base_mask &= (convbrmask >= (100 + self.PIXEL_CONNECTIVITY))
 
@@ -1566,18 +1567,20 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)       
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
 
-        # JU - Here we calculated the peak PE and SER. First, we find the mean over a 3x3x3 neighbourhood, 
+        # JU 27/09/2024 - Here we calculated the peak PE and SER. First, we find the mean over a 3x3x3 neighbourhood, 
         # and then get the max over them so we end up with a single value representing the peak PE and SER, 
         # respectively:
         mean_conv = np.ones((3,3,3))
         mean_conv /= mean_conv.sum()
-        meanSERmap = signal.convolve(SERmap, mean_conv, mode='same')
+        meanSERmap = signal.convolve(SER, mean_conv, mode='same')
         meanPEmap = signal.convolve(PE, mean_conv, mode='same')
         # Note that the convolution method to average a neighbourhood considers the values 0 when averaging (i.e. a=[1,0,1] ==> avg(a)=2/3)
-        
-        meanSERmap = meanSERmap[1::3, 1::3, 1::3] # This retains only the average over the 3x3x3 sub-matrix (i.e. where the kernel fits complete in the volume)
-        meanPEmap = meanPEmap[1::3, 1::3, 1::3]
-        print(meanSERmap)
+        meanSERmap = meanSERmap[1:(nrows-np.mod(nrows,3)):3, 
+                                1:(ncols-np.mod(ncols,3)):3, 
+                                1:(ndepth-np.mod(ndepth,3)):3] # This retains only the average over the 3x3x3 sub-matrix (i.e. where the kernel fits complete in the volume)
+        meanPEmap = meanPEmap[1:(nrows-np.mod(nrows,3)):3, 
+                                1:(ncols-np.mod(ncols,3)):3, 
+                                1:(ndepth-np.mod(ndepth,3)):3]
         peakSER = meanSERmap.max()
         peakPE = meanPEmap.max()
         
@@ -1637,7 +1640,10 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         unitsColumn.SetName(tableNodeDict['SummaryTable'][1][2])
 
         # Add stats to Summary Table:
-        labelColumnContent = ['PE Threshold',
+        # JU 27/09/2024  - Add the peak PE and SER values at the begining of the table
+        labelColumnContent = ['Peak SER',
+                              'Peak PE',
+                              'PE Threshold',
                               'SER Upper Threshold',
                               maxROIDiameter['name'], 
                               roiVolume['name'],
@@ -1649,7 +1655,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                               'First Pass Enhancement',
                               'Enhancement Slope']
 
-        statsColumnContent = [PEthreshold,
+        statsColumnContent = [np.round(peakSER,3),
+                              np.round(peakPE,3),
+                              PEthreshold,
                               serMapDictionary['SERthreshold'],
                               maxROIDiameter['value'], 
                               roiVolume['value'],
@@ -1661,7 +1669,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                               first_pass_ENH.mean(), 
                               m_slope]
 
-        unitsColumnContent = ['%',
+        unitsColumnContent = ['[]',
+                              '%',
+                              '%',
                               '[]',
                               maxROIDiameter['units'], 
                               roiVolume['units'], 
@@ -1720,15 +1730,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         nameColumn.InsertNextValue('ETV (Enhanced Tumour Volume)')
         volumeColumn.InsertNextValue(np.round(ETVstats[0],3))
         distColumn.InsertNextValue(np.round(100.0, 2))
-
-        # JU - Append the peak PE and SER values:
-        nameColumn.InsertNextValue('peak PE')
-        volumeColumn.InsertNextValue(np.round(peakPE,3))
-        distColumn.InsertNextValue(np.nan)
-
-        nameColumn.InsertNextValue('peak SER')
-        volumeColumn.InsertNextValue(np.round(peakSER,3))
-        distColumn.InsertNextValue(np.nan)
         
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
