@@ -939,15 +939,20 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # JU - Update Omit Region List
     def updateOmitRegionList(self):
         
+        resetSegmentList = False
         for omitRegion in self.omitRoiList:
             logging.debug(f'Region Name: {omitRegion.GetName()}')
             getOmitRegionByName = slicer.mrmlScene.GetNodesByName(omitRegion.GetName())
             if getOmitRegionByName.GetNumberOfItems() < 1:
                 logging.debug(f'Omit Region "{omitRegion.GetName()}" does not exist anymore')
                 self.omitRoiList.remove(omitRegion)
+                # After the loop, will need to reset the segment mask
+                resetSegmentList = True
         
         # Update the legend text in the GUI:
         self.ui.omit_regions.text=f'{len(self.omitRoiList)} Omit regions defined'
+        if resetSegmentList:
+            self.onResetSegmentList()
                      
     
     # JU - callback function to add  a new OMIT region
@@ -1011,9 +1016,11 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.subtractVolume = self.logic.subtractVolumes(self._parameterNode.input4DVolume, minuendIndex, sustrahendIndex, self.subtractVolume)
         self.logic.updateViewer(self.subtractVolume)
 
-
     def onResetSegmentList(self):
         self.logic.resetSegmentList(self._parameterNode.inputMaskVolume)
+        # If the omit region list is empty, it should give the option to create a ROI manually:
+        if len(self.omitRoiList) == 0:
+            self.ui.segmentEditorWidget.enabled=True
         
         
     def configurePlotSeriesNode(self) -> None:
