@@ -269,7 +269,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # 0 < SER ≤ SER_Threshold
         # SER_Threshold < SER ≤  SER_Threshold * (1 + SER_DELTA_FACTOR)
         self.SER_DELTA_FACTOR = 0.1 
-
+        
+        # Clear up the roi boxes
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
         
@@ -344,6 +345,18 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.displaySubtractionButton.connect("clicked(bool)", self.onDisplaySubtractionVolumes)
         self.ui.resetSegmentListButton.connect("clicked(bool)", self.onResetSegmentList)
         
+        # Button to add OMIT regions:
+        self.ui.addOmitRegionButton.connect("clicked(bool)", self.onAddOmitRegion)
+        # (Re)Set the OMIT region counter:
+        self.omit_counter = 0
+        # JU - Everytime the module is reloaded, just delete the omit regions (would this be the correct behaviour??)
+        self.cleanUpRoiBoxNodes()
+        # roiBoxNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLMarkupsROINode")
+        # for roiBoxNode in roiBoxNodes:
+        #     if roiBoxNode.GetName().startswith('omit'):
+        #         slicer.mrmlScene.RemoveNode(roiBoxNode)
+        self.omitRoiList = []
+
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
@@ -570,6 +583,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.displaySubtractionButton.enabled=True
             self.ui.sequenceRegistrationButton.enabled = True
 
+            # JU - Enable the omit regions 
+            self.ui.addOmitRegionButton.enabled = True
             # Check the visibility of the ROI
             self.toggleROIsView() # ===> Add an update to the ROI so it can reset when loading new data
 
@@ -630,6 +645,13 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.setSERColourMapDict(update=True, serUpperThreshold=self.SER_UPPER_THRESHOLD)
             self.setupColourTable()
 
+            # Update the list of omit regions to skip those removed manually:
+            self.updateOmitRegionList()
+            
+            # If list of omit regions is not empty, it is safe to reset the segmentation mask to redo the calculations
+            if self.omitRoiList:
+                self.onResetSegmentList()
+
             # Compute output
             self.logic.process(self._parameterNode.input4DVolume, 
                                self._parameterNode.inputMaskVolume, 
@@ -637,6 +659,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self._parameterNode.outputLabelMap,
                                self.roiNode,
                                self.SERsegmentsLabels,
+                               self.omitRoiList,
                                {'TICTable': [self.TICTableNode, self.TICTableRowNames],
                                 'SummaryTable': [self.SummaryTableNode, self.SummaryTableRowNames],
                                 'SERSummaryTable': [self.SERDistributionTableNode, self.SERTableRowNames]},
@@ -694,6 +717,11 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         if self.roiNode:
             self.roiNode.SetDisplayVisibility(self._parameterNode.markupROIVisibilityToggle)
+        
+        self.updateOmitRegionList()
+        if self.omitRoiList:
+            for omitRegionNode in self.omitRoiList:
+                omitRegionNode.SetDisplayVisibility(self._parameterNode.markupROIVisibilityToggle)
 
         if self.segmentID:
             maskDisplayNode = self._parameterNode.inputMaskVolume.GetDisplayNode()
@@ -851,13 +879,19 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.labelTimeLatePostContrast.text = f'{self.timeFrames[int(self._parameterNode.indicesDCE.latePostContrast)]/(1000*60):.1f}[min]'
 
         
-    def setupBoxROI(self) -> None:
-
-        self.roiNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLMarkupsROINode")
-
+    def setupBoxROI(self, name="RefBox", omitBox=False) -> None:
+        
+        roiNodes = slicer.mrmlScene.GetNodesByClassByName("vtkMRMLMarkupsROINode","RefBox")
+        if roiNodes.GetNumberOfItems() < 1:
+            self.roiNode = None
+        else:
+            # Just to keep it simple, the first RefBox is the main one:
+            self.roiNode = roiNodes.GetItemAsObject(0)
+        
         if self._parameterNode is not None:
-
-            if (self.roiNode is None) & (self.currentVolume is not None):
+            # Added support to add additional boxes as OMIT regions
+            # First, define the main RefBox:
+            if ( self.roiNode is None) & (self.currentVolume is not None ) & ( not omitBox ):
                 # setup the ROI
                 self.roiNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", "RefBox")
 
@@ -871,8 +905,74 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 new_roi_bounds = [0]*6
                 self.roiNode.GetBounds(new_roi_bounds)
                 logging.debug(f'ROI Box Size: {self.roiNode.GetSize()}')
+            elif omitBox:
+                # If an omit region is created, make dissapears the Segment Editor:
+                self.ui.segmentEditorWidget.enabled=False
+                # self.ui.segmentEditorWidget.collapsed=True
+                self.ui.segmentEditorCollapsibleButton.collapsed=True
+                # In order to create an omit region, the main RefBox must be defined (which is controlled by the previous if statement)
+                # we use the RefBox coordinates to define the initial position and size of the new omit region:
+                self.newOmitRegion = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsROINode", name)
+                newOmitRegionDisplayNode = self.newOmitRegion.GetDisplayNode()
+                # set Color to red by default so it differentiates from the Main RefBox:
+                newOmitRegionDisplayNode.SetSelectedColor(1.0, 0.0, 0.0)
                 
-                
+                # RefBox Position and size:
+                RefBoxPos = [0]*6
+                self.roiNode.GetBounds(RefBoxPos)
+                RefBoxSize = self.roiNode.GetSize()
+                RefBoxCentre = self.roiNode.GetCenter()
+                logging.debug(f'RefBox position: {RefBoxCentre}')
+                self.newOmitRegion.SetSize((RefBoxSize[0]/2, RefBoxSize[1]*2, RefBoxSize[2]))
+                self.newOmitRegion.SetCenter((RefBoxPos[1]+RefBoxSize[0]/4, RefBoxCentre[1], RefBoxCentre[2]))
+                                
+                self.omitRoiList.append( self.newOmitRegion )
+
+
+    # JU - Delete omit regions:
+    def cleanUpRoiBoxNodes(self, ROInameRegExp='omit') -> None:
+        roiBoxNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLMarkupsROINode")
+        for roiBoxNode in roiBoxNodes:
+            if roiBoxNode.GetName().startswith(ROInameRegExp):
+                slicer.mrmlScene.RemoveNode(roiBoxNode)
+        
+    # JU - Update Omit Region List
+    def updateOmitRegionList(self):
+        
+        resetSegmentList = False
+        for omitRegion in self.omitRoiList:
+            logging.debug(f'Region Name: {omitRegion.GetName()}')
+            getOmitRegionByName = slicer.mrmlScene.GetNodesByName(omitRegion.GetName())
+            if getOmitRegionByName.GetNumberOfItems() < 1:
+                logging.debug(f'Omit Region "{omitRegion.GetName()}" does not exist anymore')
+                self.omitRoiList.remove(omitRegion)
+                # After the loop, will need to reset the segment mask
+                resetSegmentList = True
+        
+        # Update the legend text in the GUI:
+        self.ui.omit_regions.text=f'{len(self.omitRoiList)} Omit regions defined'
+        if resetSegmentList:
+            self.onResetSegmentList()
+                     
+    
+    # JU - callback function to add  a new OMIT region
+    def onAddOmitRegion(self) -> None:
+        # Update the list of omit regions
+        self.updateOmitRegionList()
+        omitROIsNro = len(self.omitRoiList)
+        if  omitROIsNro > 4: # self.omit_counter > 4:
+            ok = slicer.util.confirmYesNoDisplay(f'There are already {omitROIsNro} OMIT regions defined. Shall we continue?', windowTitle="WARNING")
+        else:
+            ok = True
+
+        if not ok:
+            return
+        else:
+            self.omit_counter += 1            
+            self.setupBoxROI(name=f'omit_{self.omit_counter:02d}', omitBox=True)
+            self.ui.omit_regions.text=f'{len(self.omitRoiList)} Omit regions defined'
+            
+    
     # JU - separate to refresh the index selctors everytime the module is loaded (not only when the input selector changes)
     def setMaxIndexSelector(self, maxIndex) -> None:
                 
@@ -916,9 +1016,11 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.subtractVolume = self.logic.subtractVolumes(self._parameterNode.input4DVolume, minuendIndex, sustrahendIndex, self.subtractVolume)
         self.logic.updateViewer(self.subtractVolume)
 
-
     def onResetSegmentList(self):
         self.logic.resetSegmentList(self._parameterNode.inputMaskVolume)
+        # If the omit region list is empty, it should give the option to create a ROI manually:
+        if len(self.omitRoiList) == 0:
+            self.ui.segmentEditorWidget.enabled=True
         
         
     def configurePlotSeriesNode(self) -> None:
@@ -1401,8 +1503,9 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 maskVolumeSegmentationNode: vtkMRMLSegmentationNode, #vtkMRMLScalarVolumeNode,
                 outputMapsSequenceNode: vtkMRMLSequenceNode,
                 outputLabelMapVolumeNode: vtkMRMLLabelMapVolumeNode,
-                referenceBoxROINode: vtkMRMLMarkupsROINode, # Add roi Box as input argument!
+                referenceBoxROINode: vtkMRMLMarkupsROINode, # Add roi Box as input argument
                 serMapDictionary: dict,
+                listOfNodesWithOmitRegions: list=[], # if empty, there is no omit regions to process
                 tableNodeDict: dict={'TableName': [vtkMRMLTableNode, 'label_list']}, #vtkMRMLTableNode,
                 preContrastIndex: int=0,
                 earlyPostContrastIndex: int=1,
@@ -1479,7 +1582,12 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             # Get ROI box as nd binary array:
             voi_mask = np.zeros((nz, ny, nx))
             voi_mask[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = 1
-            
+
+            if listOfNodesWithOmitRegions:
+                for omitRegionNode in listOfNodesWithOmitRegions:
+                    omitRegIJK = self.getBoxROIIJKCoordinates(omitRegionNode, tempReferenceVolumeNode)
+                    voi_mask[omitRegIJK['IJKmin'][2]:omitRegIJK['IJKmax'][2], omitRegIJK['IJKmin'][1]:omitRegIJK['IJKmax'][1], omitRegIJK['IJKmin'][0]:omitRegIJK['IJKmax'][0]] = 0
+                    
             slicer.util.updateSegmentBinaryLabelmapFromArray(voi_mask, maskVolumeSegmentationNode, segmentNodeID)
             label = slicer.util.arrayFromSegmentBinaryLabelmap(maskVolumeSegmentationNode, segmentNodeID)
             selectedSegment.SetName('Segment from ROI')
