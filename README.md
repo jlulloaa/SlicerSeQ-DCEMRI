@@ -77,7 +77,7 @@ Currently, this extension is under development and is not yet available in the [
     2. Add the sample data to the DICOM database
     3. Load the image data into the scene
 
-<img alt="Add DICOM data" src="docs/imgs/screenshot008.gif">
+<img alt="Add DICOM data" src="docs/imgs/">
 
 2. Process the sequence data
     1. Open the [SeQ-DCEMRI] GUI, if the input data is a sequence, it should appear in the drop-down list of the ```Inputs``` section
