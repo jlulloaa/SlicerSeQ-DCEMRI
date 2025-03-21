@@ -99,11 +99,11 @@ Currently, this extension is under development and is not yet available in the [
 
     9. Once all the parameters are set, click the button ```Click to Process``` to run the analysis.
 
-<img alt="Process sequence" src="docs/imgs/screenshot009.gif">
+<img alt="Process sequence" src="docs/imgs/">
 
 3. The results can be reviewed by scrolling through the slices or time-points. The analysis can also be re-run by modifying any parameters in the ```Parameters``` section.
 
-<img alt="Review the Results" src="docs/imgs/screenshot010.gif">
+<img alt="Review the Results" src="docs/imgs/">
 
     
 # Limitations and future extensions
