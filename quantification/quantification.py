@@ -1153,8 +1153,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 SERlegend.append(legend)
             
             self.SERsegmentsLabels = {'SERthreshold': SERmapThreshold,
-                                    'colourMap': SERColourMapDictionary,#.pop('non SER'),
-                                    'legend': SERlegend,#[1:],
+                                    'colourMap': SERColourMapDictionary,
+                                    'legend': SERlegend,
                                     'levelThreshold': {'LB': SERLevelLB, 
                                                         'UB': SERLevelUB}}
 
@@ -1231,8 +1231,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         if labelVolume is not None:
             colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
             colorLegendDisplayNode.ScalarVisibilityOn()
-            colorLegendDisplayNode.SetVisibility(True)
             colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
+            colorLegendDisplayNode.SetVisibility(True)
         
         for channels in ["Red", "Yellow"]:
             view = slicer.app.layoutManager().sliceWidget(channels).sliceView()
@@ -1672,7 +1672,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         volumes_logic = slicer.modules.volumes.logic()
         volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
         # Import label map into a segmentation:
-        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)       
+        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
 
         # JU 27/09/2024 - Here we calculated the peak PE and SER. First, we find the mean over a 3x3x3 neighbourhood, 
