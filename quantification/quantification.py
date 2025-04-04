@@ -1109,13 +1109,14 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if self._parameterNode.displaySERrange:
             SERmapThreshold = 0
-            self.serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75]            
+            # self.serMapInterval = [0.00, 0.90, 1.0, 1.30, 1.75]            
+            self.serMapInterval = [0.00, 0.90, 1.30]            
             serMapColours = [[0.0, 0.0, 0.0, 0.0],  # Non-SER values: black & transparent so they can be overlaid with the MIP      
                              [0.0, 0.0, 1.0, alfa], # blue
-                             [0.5, 0.0, 0.5, alfa], # purple
+                            #  [0.5, 0.0, 0.5, alfa], # purple
                              [0.0, 1.0, 0.0, alfa], # green
                              [1.0, 0.0, 0.0, alfa], # red
-                             [1.0, 1.0, 0.0, alfa], # yellow
+                            #  [1.0, 1.0, 0.0, alfa], # yellow
                             ]
         elif (self._parameterNode.signalEnhancementRatioThreshold == 0.0):
             SERmapThreshold = 0
@@ -1151,10 +1152,9 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 SERColourMapDictionary[legend] = serMapColours[idx+1]
                 SERlegend.append(legend)
             
-                
             self.SERsegmentsLabels = {'SERthreshold': SERmapThreshold,
-                                    'colourMap': SERColourMapDictionary,
-                                    'legend': SERlegend,
+                                    'colourMap': SERColourMapDictionary,#.pop('non SER'),
+                                    'legend': SERlegend,#[1:],
                                     'levelThreshold': {'LB': SERLevelLB, 
                                                         'UB': SERLevelUB}}
 
