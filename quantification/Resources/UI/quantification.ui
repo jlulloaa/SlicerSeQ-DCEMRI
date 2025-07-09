@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>497</width>
+    <width>703</width>
     <height>916</height>
    </rect>
   </property>
@@ -555,10 +555,10 @@
      </layout>
     </widget>
    </item>
-   <item alignment="Qt::AlignTop">
+   <item>
     <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
      <property name="enabled">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -570,31 +570,11 @@
       <string>Parameters</string>
      </property>
      <property name="collapsed">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <layout class="QGridLayout" name="parametersGridLayout">
-      <item row="0" column="0" colspan="2">
-       <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>Thresholds</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignCenter|Qt::AlignHCenter|Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="labelBckgrndthresholdSlider">
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelPEthresholdSlider">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
@@ -609,11 +589,11 @@
          </font>
         </property>
         <property name="text">
-         <string>Background: </string>
+         <string> PE:</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="2" column="5">
        <widget class="ctkSliderWidget" name="backgroundThreshold">
         <property name="enabled">
          <bool>false</bool>
@@ -647,34 +627,7 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="2">
-       <widget class="QLabel" name="backgroundPCsign">
-        <property name="text">
-         <string>%</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="labelPEthresholdSlider">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="font">
-         <font>
-          <pointsize>10</pointsize>
-          <weight>50</weight>
-          <bold>false</bold>
-         </font>
-        </property>
-        <property name="text">
-         <string> PE:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
+      <item row="3" column="5">
        <widget class="ctkSliderWidget" name="peakEnhancementThreshold">
         <property name="enabled">
          <bool>false</bool>
@@ -708,34 +661,14 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="2">
-       <widget class="QLabel" name="PEthreshPCsign">
+      <item row="2" column="6">
+       <widget class="QLabel" name="backgroundPCsign">
         <property name="text">
          <string>%</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="labelSERthresholdSlider">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="font">
-         <font>
-          <pointsize>10</pointsize>
-          <weight>50</weight>
-          <bold>false</bold>
-         </font>
-        </property>
-        <property name="text">
-         <string> SER:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
+      <item row="5" column="5">
        <widget class="ctkSliderWidget" name="signalEnhancementRatioThreshold">
         <property name="enabled">
          <bool>false</bool>
@@ -769,7 +702,7 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0" colspan="2">
+      <item row="4" column="0" colspan="6">
        <widget class="QCheckBox" name="SERpredefinedRangeToggle">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
@@ -782,6 +715,99 @@
         </property>
         <property name="SlicerParameterName" stdset="0">
          <string>displaySERrange</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="6">
+       <widget class="qMRMLSegmentSelectorWidget" name="segmentSelectorWidget">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelBckgrndthresholdSlider">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+          <weight>50</weight>
+          <bold>false</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>Background: </string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="labelSERthresholdSlider">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>10</pointsize>
+          <weight>50</weight>
+          <bold>false</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string> SER:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="6">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Thresholds</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter|Qt::AlignHCenter|Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="6">
+       <widget class="QLabel" name="PEthreshPCsign">
+        <property name="text">
+         <string>%</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="5">
+       <widget class="QRadioButton" name="CADmapsLayoutViewRadioButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>% REL ENH maps</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="5">
+       <widget class="QRadioButton" name="SERmapsLayoutViewRadioButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>SER maps</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -864,9 +890,25 @@
       <string>Outputs</string>
      </property>
      <property name="collapsed">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <layout class="QGridLayout" name="outputGridLayout">
+      <item row="1" column="2">
+       <widget class="QCheckBox" name="segmentMaskVisibilityToggle">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Show Segment Mask</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>segmentMaskVisibilityToggle</string>
+        </property>
+       </widget>
+      </item>
       <item row="0" column="0" rowspan="2" alignment="Qt::AlignVCenter">
        <widget class="QLabel" name="labelLayoutView">
         <property name="sizePolicy">
@@ -895,71 +937,6 @@
         </property>
         <property name="indent">
          <number>0</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QRadioButton" name="defaultLayoutViewRadioButton">
-        <property name="text">
-         <string>Default Layout View</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QCheckBox" name="ROIMarkupVisibilityToggle">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Show Markup Box</string>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>markupROIVisibilityToggle</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QRadioButton" name="renderingLayoutViewRadioButton">
-        <property name="text">
-         <string>3D Rendering View</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="QCheckBox" name="segmentMaskVisibilityToggle">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Show Segment Mask</string>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>segmentMaskVisibilityToggle</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="labelOutputVolumes">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Parametric Maps</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
        </widget>
       </item>
@@ -999,6 +976,44 @@
         </property>
         <property name="SlicerParameterName" stdset="0">
          <string>outputSequenceMaps</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="labelTableSelector">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <property name="text">
+         <string>Tables</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelOutputVolumes">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Parametric Maps</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
        </widget>
       </item>
@@ -1057,25 +1072,36 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="labelTableSelector">
+      <item row="0" column="1">
+       <widget class="QRadioButton" name="defaultLayoutViewRadioButton">
+        <property name="text">
+         <string>Default Layout View</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QCheckBox" name="ROIMarkupVisibilityToggle">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Plain</enum>
-        </property>
         <property name="text">
-         <string>Tables</string>
+         <string>Show Markup Box</string>
         </property>
-        <property name="alignment">
-         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+        <property name="SlicerParameterName" stdset="0">
+         <string>markupROIVisibilityToggle</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QRadioButton" name="renderingLayoutViewRadioButton">
+        <property name="text">
+         <string>3D Rendering View</string>
         </property>
        </widget>
       </item>
