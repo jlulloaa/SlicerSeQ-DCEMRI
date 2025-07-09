@@ -14,8 +14,8 @@ from slicer.parameterNodeWrapper import (
     parameterPack,
 )
 
-from slicer import vtkMRMLMarkupsROINode, vtkMRMLLabelMapVolumeNode
-from slicer import vtkMRMLSequenceNode, vtkMRMLSegmentationNode, vtkMRMLTableNode
+from slicer import vtkMRMLMarkupsROINode, vtkMRMLLabelMapVolumeNode, vtkMRMLColorTableNode
+from slicer import vtkMRMLSequenceNode, vtkMRMLSegmentationNode, vtkMRMLTableNode#, vtkMRMLProceduralColorNode
 
 import numpy as np
 from scipy import signal
@@ -482,6 +482,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     # Then assign the existing table:
                     self.colourTableNode = ser_labels_colour_table.GetItemAsObject(0)
                 else:
+                    # JU 08/07/2025 - Let's try procedural Colour node (https://discourse.slicer.org/t/difference-and-use-cases-for-vtkmrmlproceduralcolornode-and-vtkmrmlcolortablenode/24602/1 )
+                    # self.colourTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLProceduralColorNode", "SER_labels")
                     self.colourTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode", "SER_labels")
 
             self.colourTableNode.SetTypeToUser()
@@ -661,6 +663,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self._parameterNode.outputLabelMap,
                                self.roiNode,
                                self.SERsegmentsLabels,
+                               self.colourTableNode, # JU 09/07/2025 - Pass the colourTableNode to enable update it with the analysis results
                                self.omitRoiList,
                                {'TICTable': [self.TICTableNode, self.TICTableRowNames],
                                 'SummaryTable': [self.SummaryTableNode, self.SummaryTableRowNames],
@@ -672,7 +675,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self._parameterNode.peakEnhancementThreshold,
                                self._parameterNode.backgroundThreshold,
                                self.segmentID,
-                               self.SER_UPPER_THRESHOLD)
+                               self.SER_UPPER_THRESHOLD,
+                               )
             self.update_plot_window()
             
             try:
@@ -1084,6 +1088,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def setupColourTable(self) -> None:
 
+        # JU 08/08/2025: If colour table is a procedural colour node, need to replace these lines:
         nLabels = len(self.SERsegmentsLabels['colourMap'])
         self.colourTableNode.SetNumberOfColors(nLabels)
         self.colourTableNode.SetNamesInitialised(True) # prevent automatic color name generation
@@ -1093,7 +1098,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             if success:
                 logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
-            
+                    
         
     def setSERColourMapDict(self, update=False, serUpperThreshold=None):
 
@@ -1217,9 +1222,16 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         currentTable.SetUseColumnTitleAsColumnHeader(True)  # Make column titles visible (instead of column names)
         slicer.app.applicationLogic().PropagateTableSelection()
     
-            
-    def updateViewer(self, backgroundVolume, foregroundVolume=None, labelVolume=None, labelOpacity=None):
+    # def update_legend(self, legend_Node, legend_dictionary):
+    #     colorMap = legend_Node.GetColorTransferFunction()
+    #     colorMap.RemoveAllPoints()
+    #     for legend, [r, g, b, a] in legend_dictionary.items():
+    #         colorMap.AddRGBPoint(legend, r, g, b, a)
         
+    #     return UpdatedColourLegendDisplayNode
+            
+    def updateViewer(self, backgroundVolume, foregroundVolume=None, labelVolume=None, labelOpacity=None, legend_update=None):
+        # TODO: Add the option to update the legend
         if foregroundVolume is not None:
             foregroundOpacity=self.FG_OPACITY
             cornerLabel = foregroundVolume.GetName()
@@ -1228,10 +1240,22 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             cornerLabel = backgroundVolume.GetName()
         
         if labelVolume is not None:
+            
+            if legend_update is not None:
+                # Reset the names of the current table:
+                legend_update['ColourNode'].ClearNames()
+                nLabels = len(legend_update['dict_legend'])
+                legend_update['ColourNode'].SetNumberOfColors(nLabels)
+                for idx, (legend, [r,g,b,a]) in enumerate(legend_update['dict_legend'].items()):
+                    success = legend_update['ColourNode'].SetColor(idx, legend, r, g, b, a)
+                    if success:
+                        logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
+                                
             colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
             colorLegendDisplayNode.ScalarVisibilityOn()
             colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
             colorLegendDisplayNode.SetVisibility(True)
+
         
         for channels in ["Red", "Yellow"]:
             view = slicer.app.layoutManager().sliceWidget(channels).sliceView()
@@ -1240,9 +1264,10 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.util.setSliceViewerLayers(background=backgroundVolume, 
                                          foreground=foregroundVolume,
                                          foregroundOpacity=foregroundOpacity,
-                                         label=labelVolume, labelOpacity=labelOpacity)
+                                         label=labelVolume, 
+                                         labelOpacity=labelOpacity)
     
-        
+  
     def showVolumeRenderingMIP(self, volumeNode, useSliceViewColors=True):
         """
         Source code from: https://slicer.readthedocs.io/en/latest/developer_guide/script_repository/volumes.html#show-volume-rendering-using-maximum-intensity-projection
@@ -1504,6 +1529,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 outputLabelMapVolumeNode: vtkMRMLLabelMapVolumeNode,
                 referenceBoxROINode: vtkMRMLMarkupsROINode, # Add roi Box as input argument
                 serMapDictionary: dict,
+                # colourTableNode: vtkMRMLProceduralColorNode, # JU 08/07/2025 - Colour Table Node with the legend so can be updated with the results
+                colourTableNode: vtkMRMLColorTableNode, # JU 08/07/2025 - Colour Table Node with the legend so can be updated with the results
                 listOfNodesWithOmitRegions: list=[], # if empty, there is no omit regions to process
                 tableNodeDict: dict={'TableName': [vtkMRMLTableNode, 'label_list']}, #vtkMRMLTableNode,
                 preContrastIndex: int=0,
@@ -1570,7 +1597,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         # Get the segment selected by the list "Segment Label Mask":
         maskSegmentation = maskVolumeSegmentationNode.GetSegmentation()
-
+        
         # Before doing anything, loop over the segmentation list and delete all labels created locally by this function in previous runs:
         self.resetSegmentList(maskVolumeSegmentationNode, items_to_remove=serMapDictionary['legend'])
         
@@ -1678,12 +1705,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Import all labels maps from outputLabelMapVolumeNode node to maskVolumeSegmentationNode, each label to a separate segment.
         slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
-
-        # DEBUG
-        auxMaskSegmentation = maskVolumeSegmentationNode.GetSegmentation()
-        for segment_iID in auxMaskSegmentation.GetSegmentIDs():
-            segmentName = auxMaskSegmentation.GetSegment(segment_iID).GetName() #?
-            print(f'()Segment Name: {segmentName}')
         
         # JU 01/05/2025: Adding Washout Type, WODELTA = 100 * (SLate - SEarly) / SEarly
         WODELTA =  100 * ( Stn_minus_St0 - St1_minus_St0 ) / (St1_minus_St0 + self.EPSILON)
@@ -1741,7 +1762,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         peakSER = meanSERmap.max()
         peakPE = meanPEmap.max()
         
-
         # FTV map label from SERmap:
         mapVolumes = {'FTV': np.where(SER > serMapDictionary['SERthreshold'], 1.0, 0.0),
                     # JU (07/07/2025: To include only pixels within the tumour, I define ETV from pixels
@@ -1867,20 +1887,32 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # print(f'SER Aux List: {SERauxList}')
         # SERauxList.pop(SERauxList.index('non SER'))
         # SERlegendCheck = [True]*len(SERauxList)
-
+        new_legend = list(serMapDictionary['colourMap'].keys())
+        new_legend_cmap = list(serMapDictionary['colourMap'].values())
+        
         for segment_iID in maskSegmentations.GetSegmentIDs():
             segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
             if segmentName in serMapDictionary['legend']: #SERauxList:
                 segmentPos = serMapDictionary['legend'].index(segmentName)# SERauxList.index(segmentName)
                 segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
+                vol_cm3 = np.round(segmentStats['volume_cm3']['value'],3)
+                vol_rel = np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2)
                 nameColumn.InsertNextValue(segmentName)
-                volumeColumn.InsertNextValue(np.round(segmentStats['volume_cm3']['value'],3))
-                distColumn.InsertNextValue(np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2))
+                volumeColumn.InsertNextValue(vol_cm3)
+                distColumn.InsertNextValue(vol_rel)
                 # nameColumn.InsertValue(segmentPos, segmentName)
                 # volumeColumn.InsertValue(segmentPos, np.round(segmentStats['volume_cm3']['value'],3))
                 # distColumn.InsertValue(segmentPos, np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2))
                 # SERlegendCheck[segmentPos] = False
-                
+                new_legend[segmentPos] = f'{segmentName} ({vol_rel:.2f}%)'
+                # to ensure new_legend and colour_map position matches:
+                new_legend_cmap[segmentPos] = serMapDictionary['colourMap'][segmentName]
+
+        updated_legend = {
+            'ColourNode': colourTableNode,
+            'dict_legend': dict(zip(new_legend, new_legend_cmap))
+            }
+ 
         # for idx in range(len(SERauxList)):
         #     if SERlegendCheck[idx] :
         #         nameColumn.InsertValue(idx, SERauxList[idx])
@@ -1912,7 +1944,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Set background image to be the MIP:
         updatedSequenceBrowserNode.SetSelectedItemNumber(0) # MIP is the first node we added
         self.updateViewer(backgroundVolume=updatedSequenceBrowserNode.GetProxyNode(outputMapsSequenceNode),
-                          labelVolume=outputLabelMapVolumeNode)
+                          labelVolume=outputLabelMapVolumeNode, legend_update=updated_legend)
         self.showVolumeRenderingMIP(updatedSequenceBrowserNode.GetProxyNode(outputMapsSequenceNode))
         # # Import label map into a segmentation:
         # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
