@@ -251,7 +251,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # JU - To ensure the columns name are consisten between TICTable and TICplot, I define them here:
         self.TICTableRowNames = ["Timepoint [min]", "PE (%)", "Linear Fit"]
         self.SummaryTableRowNames = ["Parameter", "Value", "Units"]
-        self.SERTableRowNames = ["SER Range", "Volume (cm3)", "Distribution (%)"]
+        self.SERTableRowNames = ["Ranges", "Volume (cm3)", "Distribution (%)"]
 
         # JU - Auxiliar nodes and variables
         self.currentVolume = None
@@ -270,6 +270,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # SER_Threshold < SER ≤  SER_Threshold * (1 + SER_DELTA_FACTOR)
         # self.SER_DELTA_FACTOR = 0.1 
         self.SER_DELTA_FACTOR = 4/9 # to be consistent with the default 0.0 - 0.9 - 1.3
+        
+        self.useSERmap = True
         
         # Clear up the roi boxes
     def setup(self) -> None:
@@ -330,6 +332,10 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # JU - Radio buttons are not avilable yet in the parameter node infraestructure
         self.ui.defaultLayoutViewRadioButton.connect("clicked()", self.checkDefaultVieweLayout)
         self.ui.renderingLayoutViewRadioButton.connect("clicked()", self.checkDefaultVieweLayout)
+
+        # JU 09/07/2025 - Add selector to calculate SER maps or Relative Enhancement (CAD-like)
+        self.ui.SERmapsLayoutViewRadioButton.connect("clicked()", self.checkSERmapsCalcVieweLayout)
+        self.ui.CADmapsLayoutViewRadioButton.connect("clicked()", self.checkSERmapsCalcVieweLayout)
         
         # JU - Because I want to display/set the current view to whatever slider is moved, I thinks a connector is required:
         self.ui.indexSliderPreContrast.connect("valueChanged(double)", self.setCurrentVolumeFromIndex)
@@ -352,10 +358,6 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.omit_counter = 0
         # JU - Everytime the module is reloaded, just delete the omit regions (would this be the correct behaviour??)
         self.cleanUpRoiBoxNodes()
-        # roiBoxNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLMarkupsROINode")
-        # for roiBoxNode in roiBoxNodes:
-        #     if roiBoxNode.GetName().startswith('omit'):
-        #         slicer.mrmlScene.RemoveNode(roiBoxNode)
         self.omitRoiList = []
 
         # Make sure parameter node is initialized (needed for module reload)
@@ -419,6 +421,8 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # JU - Initialise SERsegmentsLabels for SER values. It has to happens after the _parameterNode is created
         self.setSERColourMapDict(update=True)
+        # JU 08/07/2025 - Initialises CADsegmentsLabels to allow CAD-like maps (Washout/Persistent/Plateau)
+        self.setCADColourMapDict()
 
         # JU 12/06/2024 - The following should happen only if input4D volume exist
         # Initialise the output sequence that'll store the output maps, but only if the input sequence has been defined:
@@ -643,10 +647,17 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.timings = self.getAcquisitionTimings(getBolus=True)
 
             # If there are previous SER maps, removes them from the segment list:
-            self.logic.resetSegmentList(self._parameterNode.inputMaskVolume, items_to_remove=self.SERsegmentsLabels['legend'])            
+            # Ensure to delete all elements in the list (to allow switching between maps)
+            self.logic.resetSegmentList(self._parameterNode.inputMaskVolume, items_to_remove=self.SERsegmentsLabels['legend'] + self.CADsegmentsLabels['legend'])
+            
+            if self.useSERmap:
+                # self.logic.resetSegmentList(self._parameterNode.inputMaskVolume, items_to_remove=self.SERsegmentsLabels['legend'])
+                # Update SERsegmentsLabels with the value in the SER theshold slider:
+                self.setSERColourMapDict(update=True, serUpperThreshold=self.SER_UPPER_THRESHOLD)
+            else:
+                # self.logic.resetSegmentList(self._parameterNode.inputMaskVolume, items_to_remove=self.CADsegmentsLabels['legend'])          
+                self.setCADColourMapDict()
 
-            # Update SERsegmentsLabels with the value in the SER theshold slider:
-            self.setSERColourMapDict(update=True, serUpperThreshold=self.SER_UPPER_THRESHOLD)
             self.setupColourTable()
 
             # Update the list of omit regions to skip those removed manually:
@@ -663,6 +674,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self._parameterNode.outputLabelMap,
                                self.roiNode,
                                self.SERsegmentsLabels,
+                               self.CADsegmentsLabels,
                                self.colourTableNode, # JU 09/07/2025 - Pass the colourTableNode to enable update it with the analysis results
                                self.omitRoiList,
                                {'TICTable': [self.TICTableNode, self.TICTableRowNames],
@@ -676,6 +688,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                self._parameterNode.backgroundThreshold,
                                self.segmentID,
                                self.SER_UPPER_THRESHOLD,
+                               self.useSERmap
                                )
             self.update_plot_window()
             
@@ -708,16 +721,24 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             self.layoutManager.setLayout(self.volumeRenderOnlyLayout)
             
-                        
-    def checkVolumeRenderingVieweLayout(self) -> None:
+    # def checkVolumeRenderingVieweLayout(self) -> None:
 
-        if self._parameterNode.renderingLayoutViewToggle:
-            self.layoutManager.setLayout(self.volumeRenderOnlyLayout)
-        else:
-            self.layoutManager.setLayout(self.customLayoutId)
+    #     if self._parameterNode.renderingLayoutViewToggle:
+    #         self.layoutManager.setLayout(self.volumeRenderOnlyLayout)
+    #     else:
+    #         self.layoutManager.setLayout(self.customLayoutId)
 
-        self._parameterNode.defaultLayoutViewToggle = not self._parameterNode.renderingLayoutViewToggle
+    #     self._parameterNode.defaultLayoutViewToggle = not self._parameterNode.renderingLayoutViewToggle
        
+    def checkSERmapsCalcVieweLayout(self) -> None:
+        
+        if self.ui.SERmapsLayoutViewRadioButton.checked:
+            self.ui.SERpredefinedRangeToggle.enabled=True
+            self.useSERmap = True
+        else:
+            self.useSERmap = False
+            self.ui.SERpredefinedRangeToggle.enabled=False
+
             
     def toggleROIsView(self) -> None:
         
@@ -1089,16 +1110,44 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def setupColourTable(self) -> None:
 
         # JU 08/08/2025: If colour table is a procedural colour node, need to replace these lines:
-        nLabels = len(self.SERsegmentsLabels['colourMap'])
+        if self.useSERmap:
+            segmentLabels = self.SERsegmentsLabels
+        else:
+            segmentLabels = self.CADsegmentsLabels
+        
+        nLabels = len(segmentLabels['colourMap'])
         self.colourTableNode.SetNumberOfColors(nLabels)
         self.colourTableNode.SetNamesInitialised(True) # prevent automatic color name generation
 
-        for idx, (legend, [r,g,b,a]) in enumerate(self.SERsegmentsLabels['colourMap'].items()):
+        for idx, (legend, [r,g,b,a]) in enumerate(segmentLabels['colourMap'].items()):
             success = self.colourTableNode.SetColor(idx, legend, r, g, b, a)
 
             if success:
                 logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
                     
+    def setCADColourMapDict(self):
+        
+        # Here, we use the scoring used by Jeong et al., 2025 (https://doi.org/10.1007/s11547-025-01956-6), where Washout Delta is 
+        # defined as the difference in in pixel signal intensity in the delayed contrast-enhanced images compared to the initial 
+        # contra-enhanced images:
+        # Persistent type   is defined as an increase in signal intensity of mode than 10% ==> DELTA > 10% (BLUE)
+        # Plateau type      is defined as a change in signal intensity of less than 10% ==> || DELTA || <= 10% (YELLOW)
+        # Washout type      is defined as a decline in signal intensity of more than 10% ==> DELTA < -10% (RED)
+        
+        # CADLevelLB, CADLevelUB = [[-100.0, -10.0, 10.0], [-10.0, 10.0, 100.0]]
+        CADColourMapDictionary = {
+            'non CAD': [0.0, 0.0, 0.0, 0.0], # transparent for everything else
+            'Persistent': [0.0, 0.0, 1.0, 1.0], # blue colour - Persistent
+            'Plateau': [1.0, 1.0, 0.0, 1.0], # yellow - Plateau
+            'Washout': [1.0, 0.0, 0.0, 1.0], # red colour - Washout
+            }
+        CADlegend = list(CADColourMapDictionary.keys())
+                
+        self.CADsegmentsLabels = {'CADthreshold': 10.0,
+                                  'colourMap': CADColourMapDictionary,
+                                  'legend': CADlegend,
+                                  'levelThreshold': 10.0}
+
         
     def setSERColourMapDict(self, update=False, serUpperThreshold=None):
 
@@ -1142,7 +1191,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if serUpperThreshold is not None:
             if serUpperThreshold > max(self.serMapInterval):
                 self.serMapInterval.append(serUpperThreshold)
-            serMapColours.append( [1.0, 1.0, 1.0, alfa]) # white
+            serMapColours.append( [1.0, 1.0, 1.0, 0.0]) # white
                 
         if update:
             SERLevelLB = self.serMapInterval[:-1]
@@ -1222,14 +1271,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         currentTable.SetUseColumnTitleAsColumnHeader(True)  # Make column titles visible (instead of column names)
         slicer.app.applicationLogic().PropagateTableSelection()
     
-    # def update_legend(self, legend_Node, legend_dictionary):
-    #     colorMap = legend_Node.GetColorTransferFunction()
-    #     colorMap.RemoveAllPoints()
-    #     for legend, [r, g, b, a] in legend_dictionary.items():
-    #         colorMap.AddRGBPoint(legend, r, g, b, a)
-        
-    #     return UpdatedColourLegendDisplayNode
-            
+               
     def updateViewer(self, backgroundVolume, foregroundVolume=None, labelVolume=None, labelOpacity=None, legend_update=None):
         # TODO: Add the option to update the legend
         if foregroundVolume is not None:
@@ -1243,17 +1285,23 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             
             if legend_update is not None:
                 # Reset the names of the current table:
-                legend_update['ColourNode'].ClearNames()
+                # legend_update['ColourNode'].ClearNames()
                 nLabels = len(legend_update['dict_legend'])
                 legend_update['ColourNode'].SetNumberOfColors(nLabels)
                 for idx, (legend, [r,g,b,a]) in enumerate(legend_update['dict_legend'].items()):
-                    success = legend_update['ColourNode'].SetColor(idx, legend, r, g, b, a)
+                    if legend.startswith('non'):
+                        success = legend_update['ColourNode'].SetColor(idx, '', r, g, b, a) #Force to be transparent
+                    else:
+                        success = legend_update['ColourNode'].SetColor(idx, legend, r, g, b, a)
                     if success:
+                        # print(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
                         logging.debug(f'(setupColourTable) {idx}) Legend: {legend} - (success: {success})')
                                 
             colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
             colorLegendDisplayNode.ScalarVisibilityOn()
             colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
+            colorLegendDisplayNode.GetLabelTextProperty().SetFontSize(10)
+            colorLegendDisplayNode.SetTitleText(legend_update['Title'])
             colorLegendDisplayNode.SetVisibility(True)
 
         
@@ -1529,7 +1577,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 outputLabelMapVolumeNode: vtkMRMLLabelMapVolumeNode,
                 referenceBoxROINode: vtkMRMLMarkupsROINode, # Add roi Box as input argument
                 serMapDictionary: dict,
-                # colourTableNode: vtkMRMLProceduralColorNode, # JU 08/07/2025 - Colour Table Node with the legend so can be updated with the results
+                cadMapDictionary: dict,
                 colourTableNode: vtkMRMLColorTableNode, # JU 08/07/2025 - Colour Table Node with the legend so can be updated with the results
                 listOfNodesWithOmitRegions: list=[], # if empty, there is no omit regions to process
                 tableNodeDict: dict={'TableName': [vtkMRMLTableNode, 'label_list']}, #vtkMRMLTableNode,
@@ -1540,7 +1588,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 PEthreshold: float=70.0,
                 BKGRNDthreshold: float=60.0,
                 segmentNodeID: str='',
-                serUpperThreshold: float=3.0
+                serUpperThreshold: float=3.0,
+                useSERmap: bool=True
                 ) -> None:
         """
         TODO: Update description of the input parameters
@@ -1579,9 +1628,10 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Pre-populate it with the info from the first input volume in the input sequence, so we get the same image orientation,dimensions, etc.:
         tempReferenceVolumeNode = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "temporary")        
         tempSERVolumeNode = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "serMap")        
-        tempPEVolumeNode  = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "peMap")        
-        # JU 01/05/2025 Allocate mem for the Washout Type map
-        tempWOUTVolumeNode  = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "woMap")        
+        tempPEVolumeNode  = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "peMap")
+        # JU 01/05/2025 Allocate mem for the Washout Type map & add a label map that can later on be deleted if not used:
+        tempWOUTVolumeNode  = slicer.modules.volumes.logic().CloneVolume(inputVolumeSequenceNode.GetNthDataNode(0), "woMap")
+        # cadLabelMapVolumeNode  = slicer.modules.volumes.logic().CloneVolume(outputLabelMapVolumeNode, "ENH Label")        
         
         roiIJK = self.getBoxROIIJKCoordinates(referenceBoxROINode, tempReferenceVolumeNode)
 
@@ -1592,14 +1642,18 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         
         SERmapTemplate = np.zeros((nz,ny,nx))
         PEmapTemplate  = np.zeros((nz,ny,nx))
-        # JU 01/05/2025: Add template for the washout type, delta = (Sl-Se)/Se [%]
+        # JU 01/05/2025: Add template for the Washout type, delta = (Sl-Se)/Se [%]
         DeltaMapTemplate = np.zeros((nz, ny, nx))
 
         # Get the segment selected by the list "Segment Label Mask":
         maskSegmentation = maskVolumeSegmentationNode.GetSegmentation()
-        
+         
         # Before doing anything, loop over the segmentation list and delete all labels created locally by this function in previous runs:
-        self.resetSegmentList(maskVolumeSegmentationNode, items_to_remove=serMapDictionary['legend'])
+        if useSERmap:
+            self.resetSegmentList(maskVolumeSegmentationNode, items_to_remove=serMapDictionary['legend'])
+        else:
+            # Do it again, but for the cadMapDictionary
+            self.resetSegmentList(maskVolumeSegmentationNode, items_to_remove=cadMapDictionary['legend'])
         
         # Ensure visibility for the selected segment is ON (TRUE)
         selectedSegment = maskSegmentation.GetSegment(segmentNodeID)
@@ -1700,48 +1754,53 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         slicer.util.updateVolumeFromArray(tempSERVolumeNode, SERmapTemplate)
 
         volumes_logic = slicer.modules.volumes.logic()
-        volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
-        
-        # Import all labels maps from outputLabelMapVolumeNode node to maskVolumeSegmentationNode, each label to a separate segment.
-        slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
+        if useSERmap:
+            # Uncomment when enabling boolean flag for SER and CAD:
+            volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempSERVolumeNode)
+            
+            # Import all labels maps from outputLabelMapVolumeNode node to maskVolumeSegmentationNode, each label to a separate segment.
+            slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
+            # End of branch 
+
         outputMapsSequenceNode.SetDataNodeAtValue(tempSERVolumeNode, "SER")
         
         # JU 01/05/2025: Adding Washout Type, WODELTA = 100 * (SLate - SEarly) / SEarly
-        WODELTA =  100 * ( Stn_minus_St0 - St1_minus_St0 ) / (St1_minus_St0 + self.EPSILON)
+        WODELTA =  100.0 * ( Stn_minus_St0 - St1_minus_St0 ) / (St1_minus_St0 + self.EPSILON)
         WASHOUTmap = np.zeros_like(WODELTA)
-        # Here, we use the scoring used by Jeong et al., 2025 (https://doi.org/10.1007/s11547-025-01956-6), where Washout Delta is 
-        # defined as the difference in in pixel signal intensity in the delayed contrast-enhanced images compared to the initial 
-        # contra-enhanced images:
-        # Persistent type   is defined as an increase in signal intensity of mode than 10% ==> DELTA > 10% (BLUE)
-        # Plateau type      is defined as a change in signal intensity of less than 10% ==> || DELTA || <= 10% (YELLOW)
-        # Washout type      is defined as a decline in signal intensity of more than 10% ==> DELTA < -10% (RED)
-        washoutMapDictionary = {'washout': {'colour': [1, 0, 0, 1], # red colour
-                                            'threshold': -10.0, # WODELTA is already multiplied by 100
-                                            },
-                                'persistent': {'colour': [0, 1, 1, 1], # blue colour
-                                               'threshold': 10.0, # WODELTA is already multiplied by 100
-                                               },
-                                'plateau': {'colour': [1, 1, 0, 1], # yellow
-                                            'threshold': 10.0, # WODELTA is already multiplied by 100
-                                            }
-                                }
 
-        for idx, (label, colour_map) in enumerate(washoutMapDictionary.items()):
-            if label == 'persistent':
-                truth_table_indices = WODELTA > colour_map['threshold']
-            elif label == 'plateau':
-                truth_table_indices = np.abs(WODELTA) <= colour_map['threshold']
-            elif label == 'washout':
-                truth_table_indices = WODELTA < colour_map['threshold']
+        for idx, label in enumerate(cadMapDictionary['legend']):
+            if label == 'Plateau':
+                truth_table_indices = np.abs(WODELTA) <= cadMapDictionary['levelThreshold']
+            elif label == 'Persistent':
+                truth_table_indices = WODELTA > cadMapDictionary['levelThreshold']
+            elif label == 'Washout':
+                truth_table_indices = WODELTA < ( -1.0 * cadMapDictionary['levelThreshold'] )
             else:
-                print(f'[ERROR]: Label {label} is not a valid name')
-            WASHOUTmap[truth_table_indices] = idx + 1 # that way, 0 is for anything else not in label
+                # Everything else must be 0 already
+                pass
+            WASHOUTmap[truth_table_indices] = idx # The logix is different to SER maps, so in this case IDX is correct (instead of IDX+1)
         
         WASHOUTmap *= base_mask
         DeltaMapTemplate[roiIJK['IJKmin'][2]:roiIJK['IJKmax'][2], roiIJK['IJKmin'][1]:roiIJK['IJKmax'][1], roiIJK['IJKmin'][0]:roiIJK['IJKmax'][0]] = WASHOUTmap
 
         slicer.util.updateVolumeFromArray(tempWOUTVolumeNode, DeltaMapTemplate)
+        if not useSERmap:
+            # Uncomment when enabling boolean flag for SER and CAD:
+            volumes_logic.CreateLabelVolumeFromVolume(slicer.mrmlScene, outputLabelMapVolumeNode, tempWOUTVolumeNode)
+            
+            # Import all labels maps from outputLabelMapVolumeNode node to maskVolumeSegmentationNode, each label to a separate segment.
+            slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
+            # End of branch 
+
+        # DEBUG
+        AuxMaskSegmentation = maskVolumeSegmentationNode.GetSegmentation()
+        for AuxSegment_iID in AuxMaskSegmentation.GetSegmentIDs():
+            AuxSegmentName = AuxMaskSegmentation.GetSegment(AuxSegment_iID).GetName() #?
+            print(f'Debuggin Line 1793 segment Name: {AuxSegmentName}')
+        # END DEBUG block
+        
         outputMapsSequenceNode.SetDataNodeAtValue(tempWOUTVolumeNode, "Washout")
+
         # Delete tempWOUTVolumeNode asap:
         slicer.mrmlScene.RemoveNode(tempWOUTVolumeNode)
 
@@ -1762,12 +1821,24 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         peakSER = meanSERmap.max()
         peakPE = meanPEmap.max()
         
-        # FTV map label from SERmap:
-        mapVolumes = {'FTV': np.where(SER > serMapDictionary['SERthreshold'], 1.0, 0.0),
-                    # JU (07/07/2025: To include only pixels within the tumour, I define ETV from pixels
-                    # where SERmap > 0, rather than PEmap > PEthreshold
-                      'ETV': np.where(SER > 0, 1.0, 0.0)
-                      }
+        if useSERmap:
+            # FTV map label from SERmap:
+            mapVolumes = {'FTV': np.where(SER > serMapDictionary['SERthreshold'], 1.0, 0.0),
+                        # JU (07/07/2025: To include only pixels within the tumour, I define ETV from pixels
+                        # where SERmap > 0, rather than PEmap > PEthreshold
+                        'ETV': np.where(SER > 0, 1.0, 0.0),
+                        }
+        else:
+            # JU (10/07/2025): FTV map label from CAD-like map
+            #   Unlike SER, in this case, the ETV must be calculated differently
+            #   It is only needed to sum over the actual ranges (not 0), so have to use WASHOUTmap
+            mapVolumes = {'FTV': np.where( ( WASHOUTmap == cadMapDictionary['legend'].index('Plateau') ) | 
+                                           ( WASHOUTmap == cadMapDictionary['legend'].index('Washout') ),
+                                           1.0, 
+                                           0.0),
+                          'ETV': np.where(WASHOUTmap > 0, 1.0, 0.0)
+                          }
+            
         
         mapStats = {}
         for mapNameID, mapVolume in mapVolumes.items():
@@ -1791,8 +1862,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             ser_roi  = uptake_ti[time_index,:,:,:]
             time_intensity_curve[time_index,1] =  ser_roi[seg_points].mean()
 
-        max_ENH = np.max(uptake_ti, axis=0)
-        delta_ENH = (uptake_ti[latePostContrastIndex,:,:,:] - uptake_ti[earlyPostContrastIndex,:,:,:])[seg_points]
+        max_ENH = np.max( uptake_ti, axis=0 )
+        delta_ENH = ( uptake_ti[latePostContrastIndex,:,:,:] - uptake_ti[earlyPostContrastIndex,:,:,:] )[seg_points]
         first_pass_ENH = uptake_ti[earlyPostContrastIndex,:,:,:][seg_points]
         [m_slope, n_coeff], time_intensity_curve[1:,2] = self.simple_linear_fit(time_intensity_curve[1:,0], time_intensity_curve[1:,1])
 
@@ -1880,44 +1951,38 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         maskSegmentations = maskVolumeSegmentationNode.GetSegmentation()
         FTVstats = [mapStats['FTV']['volume_cm3']['value'], mapStats['FTV']['voxel_count']['value']]
         ETVstats = [mapStats['ETV']['volume_cm3']['value'], mapStats['ETV']['voxel_count']['value']]
-        
-        # Skip 'non SER' from legends
-        # SERauxList = serMapDictionary['legend'].copy()
-        # DEBUG:
-        # print(f'SER Aux List: {SERauxList}')
-        # SERauxList.pop(SERauxList.index('non SER'))
-        # SERlegendCheck = [True]*len(SERauxList)
-        new_legend = list(serMapDictionary['colourMap'].keys())
-        new_legend_cmap = list(serMapDictionary['colourMap'].values())
+
+        if useSERmap: # SER ranges
+            MapDictionary = serMapDictionary.copy()
+            labelTitle = 'SER Ranges'
+        else:
+            MapDictionary = cadMapDictionary.copy()
+            labelTitle = 'Labels'
+            
+        # Create summary table and legend for SER maps
+        new_legend = list(MapDictionary['colourMap'].keys())
+        new_legend_cmap = list(MapDictionary['colourMap'].values())
         
         for segment_iID in maskSegmentations.GetSegmentIDs():
             segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
-            if segmentName in serMapDictionary['legend']: #SERauxList:
-                segmentPos = serMapDictionary['legend'].index(segmentName)# SERauxList.index(segmentName)
+            if segmentName in MapDictionary['legend']: #SERauxList:
+                segmentPos = MapDictionary['legend'].index(segmentName)# SERauxList.index(segmentName)
                 segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
                 vol_cm3 = np.round(segmentStats['volume_cm3']['value'],3)
                 vol_rel = np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2)
                 nameColumn.InsertNextValue(segmentName)
                 volumeColumn.InsertNextValue(vol_cm3)
                 distColumn.InsertNextValue(vol_rel)
-                # nameColumn.InsertValue(segmentPos, segmentName)
-                # volumeColumn.InsertValue(segmentPos, np.round(segmentStats['volume_cm3']['value'],3))
-                # distColumn.InsertValue(segmentPos, np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2))
-                # SERlegendCheck[segmentPos] = False
-                new_legend[segmentPos] = f'{segmentName} ({vol_rel:.2f}%)'
+                new_legend[segmentPos] = f'{segmentName}\n{vol_rel:.2f}%'
                 # to ensure new_legend and colour_map position matches:
-                new_legend_cmap[segmentPos] = serMapDictionary['colourMap'][segmentName]
-
+                new_legend_cmap[segmentPos] = MapDictionary['colourMap'][segmentName]
+        
         updated_legend = {
             'ColourNode': colourTableNode,
-            'dict_legend': dict(zip(new_legend, new_legend_cmap))
+            'dict_legend': dict(zip(new_legend, new_legend_cmap)),
+            'Title': labelTitle
             }
- 
-        # for idx in range(len(SERauxList)):
-        #     if SERlegendCheck[idx] :
-        #         nameColumn.InsertValue(idx, SERauxList[idx])
-        #         volumeColumn.InsertValue(idx, np.nan)
-        #         distColumn.InsertValue(idx, np.nan)
+            
         
         # Append the FTV and ETV stats at the end of list
         nameColumn.InsertNextValue('FTV (Functional Tumour Volume)')
@@ -1927,7 +1992,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         nameColumn.InsertNextValue('ETV (Enhanced Tumour Volume)')
         volumeColumn.InsertNextValue(np.round(ETVstats[0],3))
         distColumn.InsertNextValue(np.round(100.0, 2))
-        
+         
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
 
@@ -1944,7 +2009,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Set background image to be the MIP:
         updatedSequenceBrowserNode.SetSelectedItemNumber(0) # MIP is the first node we added
         self.updateViewer(backgroundVolume=updatedSequenceBrowserNode.GetProxyNode(outputMapsSequenceNode),
-                          labelVolume=outputLabelMapVolumeNode, legend_update=updated_legend)
+                        labelVolume=outputLabelMapVolumeNode, legend_update=updated_legend)
+
         self.showVolumeRenderingMIP(updatedSequenceBrowserNode.GetProxyNode(outputMapsSequenceNode))
         # # Import label map into a segmentation:
         # slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(outputLabelMapVolumeNode, maskVolumeSegmentationNode)
