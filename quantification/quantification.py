@@ -251,7 +251,7 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # JU - To ensure the columns name are consisten between TICTable and TICplot, I define them here:
         self.TICTableRowNames = ["Timepoint [min]", "PE (%)", "Linear Fit"]
         self.SummaryTableRowNames = ["Parameter", "Value", "Units"]
-        self.SERTableRowNames = ["SER Range", "Volume (cm3)", "Distribution (%)"]
+        self.SERTableRowNames = ["Ranges", "Volume (cm3)", "Distribution (%)"]
 
         # JU - Auxiliar nodes and variables
         self.currentVolume = None
@@ -1137,9 +1137,9 @@ class quantificationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # CADLevelLB, CADLevelUB = [[-100.0, -10.0, 10.0], [-10.0, 10.0, 100.0]]
         CADColourMapDictionary = {
             'non CAD': [0.0, 0.0, 0.0, 0.0], # transparent for everything else
-            'Washout': [1.0, 0.0, 0.0, 1.0], # red colour - Washout
-            'Plateau': [1.0, 1.0, 0.0, 1.0], # yellow - Plateau
             'Persistent': [0.0, 0.0, 1.0, 1.0], # blue colour - Persistent
+            'Plateau': [1.0, 1.0, 0.0, 1.0], # yellow - Plateau
+            'Washout': [1.0, 0.0, 0.0, 1.0], # red colour - Washout
             }
         CADlegend = list(CADColourMapDictionary.keys())
                 
@@ -1290,7 +1290,6 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                 legend_update['ColourNode'].SetNumberOfColors(nLabels)
                 for idx, (legend, [r,g,b,a]) in enumerate(legend_update['dict_legend'].items()):
                     if legend.startswith('non'):
-                        print(f'Legend value: {legend}')
                         success = legend_update['ColourNode'].SetColor(idx, '', r, g, b, a) #Force to be transparent
                     else:
                         success = legend_update['ColourNode'].SetColor(idx, legend, r, g, b, a)
@@ -1301,6 +1300,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             colorLegendDisplayNode = slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(labelVolume)
             colorLegendDisplayNode.ScalarVisibilityOn()
             colorLegendDisplayNode.GetLabelTextProperty().SetFontFamilyToArial()
+            colorLegendDisplayNode.GetLabelTextProperty().SetFontSize(10)
+            colorLegendDisplayNode.SetTitleText(legend_update['Title'])
             colorLegendDisplayNode.SetVisibility(True)
 
         
@@ -1828,12 +1829,15 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
                         'ETV': np.where(SER > 0, 1.0, 0.0),
                         }
         else:
-            # FTV map label from CAD-like map:
-            mapVolumes = {'FTV': np.where(WODELTA < cadMapDictionary['CADthreshold'], 1.0, 0.0),
-                        # JU (07/07/2025: To include only pixels within the tumour, I define ETV from pixels
-                        # where SERmap > 0, rather than PEmap > PEthreshold
-                        'ETV': np.where(WODELTA > 0, 1.0, 0.0),
-                        }
+            # JU (10/07/2025): FTV map label from CAD-like map
+            #   Unlike SER, in this case, the ETV must be calculated differently
+            #   It is only needed to sum over the actual ranges (not 0), so have to use WASHOUTmap
+            mapVolumes = {'FTV': np.where( ( WASHOUTmap == cadMapDictionary['legend'].index('Plateau') ) | 
+                                           ( WASHOUTmap == cadMapDictionary['legend'].index('Washout') ),
+                                           1.0, 
+                                           0.0),
+                          'ETV': np.where(WASHOUTmap > 0, 1.0, 0.0)
+                          }
             
         
         mapStats = {}
@@ -1858,8 +1862,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             ser_roi  = uptake_ti[time_index,:,:,:]
             time_intensity_curve[time_index,1] =  ser_roi[seg_points].mean()
 
-        max_ENH = np.max(uptake_ti, axis=0)
-        delta_ENH = (uptake_ti[latePostContrastIndex,:,:,:] - uptake_ti[earlyPostContrastIndex,:,:,:])[seg_points]
+        max_ENH = np.max( uptake_ti, axis=0 )
+        delta_ENH = ( uptake_ti[latePostContrastIndex,:,:,:] - uptake_ti[earlyPostContrastIndex,:,:,:] )[seg_points]
         first_pass_ENH = uptake_ti[earlyPostContrastIndex,:,:,:][seg_points]
         [m_slope, n_coeff], time_intensity_curve[1:,2] = self.simple_linear_fit(time_intensity_curve[1:,0], time_intensity_curve[1:,1])
 
@@ -1948,60 +1952,37 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         FTVstats = [mapStats['FTV']['volume_cm3']['value'], mapStats['FTV']['voxel_count']['value']]
         ETVstats = [mapStats['ETV']['volume_cm3']['value'], mapStats['ETV']['voxel_count']['value']]
 
-        if useSERmap:
-            # Create summary table and legend for SER maps
-            new_legend = list(serMapDictionary['colourMap'].keys())
-            new_legend_cmap = list(serMapDictionary['colourMap'].values())
-            
-            for segment_iID in maskSegmentations.GetSegmentIDs():
-                segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
-                if segmentName in serMapDictionary['legend']: #SERauxList:
-                    segmentPos = serMapDictionary['legend'].index(segmentName)# SERauxList.index(segmentName)
-                    segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
-                    vol_cm3 = np.round(segmentStats['volume_cm3']['value'],3)
-                    vol_rel = np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2)
-                    nameColumn.InsertNextValue(segmentName)
-                    volumeColumn.InsertNextValue(vol_cm3)
-                    distColumn.InsertNextValue(vol_rel)
-                    new_legend[segmentPos] = f'{segmentName} ({vol_rel:.2f}%)'
-                    # to ensure new_legend and colour_map position matches:
-                    new_legend_cmap[segmentPos] = serMapDictionary['colourMap'][segmentName]
-            
-            updated_legend = {
-                'ColourNode': colourTableNode,
-                'dict_legend': dict(zip(new_legend, new_legend_cmap))
-                }
-            
+        if useSERmap: # SER ranges
+            MapDictionary = serMapDictionary.copy()
+            labelTitle = 'SER Ranges'
         else:
-            # Create summary table and legend for CAD-like maps
-            new_legend = list(cadMapDictionary['colourMap'].keys())
-            new_legend_cmap = list(cadMapDictionary['colourMap'].values())
+            MapDictionary = cadMapDictionary.copy()
+            labelTitle = 'Labels'
             
-            for segment_iID in maskSegmentations.GetSegmentIDs():
-                segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
-                # DEBUG
-                print(f'Check segment list: {segmentName}')
-                if segmentName in cadMapDictionary['legend']: #SERauxList:
-                    # DEBUG
-                    print(f'Updating segment list: {segmentName}')
-                    segmentPos = cadMapDictionary['legend'].index(segmentName)# SERauxList.index(segmentName)
-                    segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
-                    vol_cm3 = np.round(segmentStats['volume_cm3']['value'],3)
-                    vol_rel = np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2)
-                    nameColumn.InsertNextValue(segmentName)
-                    volumeColumn.InsertNextValue(vol_cm3)
-                    distColumn.InsertNextValue(vol_rel)
-                    new_legend[segmentPos] = f'{segmentName} ({vol_rel:.2f}%)'
-                    # to ensure new_legend and colour_map position matches:
-                    new_legend_cmap[segmentPos] = cadMapDictionary['colourMap'][segmentName]
+        # Create summary table and legend for SER maps
+        new_legend = list(MapDictionary['colourMap'].keys())
+        new_legend_cmap = list(MapDictionary['colourMap'].values())
+        
+        for segment_iID in maskSegmentations.GetSegmentIDs():
+            segmentName = maskSegmentation.GetSegment(segment_iID).GetName() #?
+            if segmentName in MapDictionary['legend']: #SERauxList:
+                segmentPos = MapDictionary['legend'].index(segmentName)# SERauxList.index(segmentName)
+                segmentStats = self.getStatsFromMask(maskVolumeSegmentationNode, segment_iID)
+                vol_cm3 = np.round(segmentStats['volume_cm3']['value'],3)
+                vol_rel = np.round(100 * segmentStats['voxel_count']['value'] / ETVstats[1], 2)
+                nameColumn.InsertNextValue(segmentName)
+                volumeColumn.InsertNextValue(vol_cm3)
+                distColumn.InsertNextValue(vol_rel)
+                new_legend[segmentPos] = f'{segmentName}\n{vol_rel:.2f}%'
+                # to ensure new_legend and colour_map position matches:
+                new_legend_cmap[segmentPos] = MapDictionary['colourMap'][segmentName]
+        
+        updated_legend = {
+            'ColourNode': colourTableNode,
+            'dict_legend': dict(zip(new_legend, new_legend_cmap)),
+            'Title': labelTitle
+            }
             
-            updated_legend = {
-                'ColourNode': colourTableNode,
-                'dict_legend': dict(zip(new_legend, new_legend_cmap))
-                }
-
-        # DEBUG
-        # print(f'Updated Legend is: {updated_legend}')
         
         # Append the FTV and ETV stats at the end of list
         nameColumn.InsertNextValue('FTV (Functional Tumour Volume)')
