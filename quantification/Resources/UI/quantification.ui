@@ -788,7 +788,7 @@
       <item row="7" column="5">
        <widget class="QRadioButton" name="CADmapsLayoutViewRadioButton">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="text">
          <string>% REL ENH maps</string>
@@ -801,7 +801,7 @@
       <item row="6" column="5">
        <widget class="QRadioButton" name="SERmapsLayoutViewRadioButton">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="text">
          <string>SER maps</string>
