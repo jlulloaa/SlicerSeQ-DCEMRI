@@ -1282,7 +1282,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
             cornerLabel = backgroundVolume.GetName()
         
         if labelVolume is not None:
-            
+            # TODO: Fix the boundary case when SER threshold = 0.0. In the legend appears (none)
             if legend_update is not None:
                 # Reset the names of the current table:
                 # legend_update['ColourNode'].ClearNames()
@@ -1703,6 +1703,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         Stn_minus_St0 = St_minus_St0[latePostContrastIndex, :, :, :]
         
         PE = 100 * St1_minus_St0 / ( St0 + self.EPSILON )
+        ETVthreshold = 100 * St1_minus_St0 / ( St0 + self.EPSILON )
         base_mask &= (PE >= PEthreshold)
 
         PE = np.where(base_mask, PE, 0)
@@ -1804,7 +1805,8 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         # Delete tempWOUTVolumeNode asap:
         slicer.mrmlScene.RemoveNode(tempWOUTVolumeNode)
 
-        # JU 27/09/2024 - Here we calculated the peak PE and SER. First, we find the mean over a 3x3x3 neighbourhood, 
+        # JU 27/09/2024 - Here we calculated the peak PE and SER. (Partridge et al., 2010)
+        # First, we find the mean over a 3x3x3 neighbourhood, 
         # and then get the max over them so we end up with a single value representing the peak PE and SER, 
         # respectively:
         mean_conv = np.ones((3,3,3))
@@ -1824,19 +1826,21 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
         if useSERmap:
             # FTV map label from SERmap:
             mapVolumes = {'FTV': np.where(SER > serMapDictionary['SERthreshold'], 1.0, 0.0),
-                        # JU (07/07/2025: To include only pixels within the tumour, I define ETV from pixels
-                        # where SERmap > 0, rather than PEmap > PEthreshold
-                        'ETV': np.where(SER > 0, 1.0, 0.0),
+                        # ETV is defined as the total number of pixels that enhance around 2 min post contrast injection 
+                        # (Henderson et al., 2018), (Panthi et al., 2023)
+                        'ETV':  np.where(ETVthreshold > 0.0, 1.0, 0.0) , # np.where(PE > 0, 1.0, 0.0),
                         }
         else:
             # JU (10/07/2025): FTV map label from CAD-like map
-            #   Unlike SER, in this case, the ETV must be calculated differently
+            #   Unlike SER, in this case, the FTV must be calculated differently
             #   It is only needed to sum over the actual ranges (not 0), so have to use WASHOUTmap
             mapVolumes = {'FTV': np.where( ( WASHOUTmap == cadMapDictionary['legend'].index('Plateau') ) | 
                                            ( WASHOUTmap == cadMapDictionary['legend'].index('Washout') ),
                                            1.0, 
                                            0.0),
-                          'ETV': np.where(WASHOUTmap > 0, 1.0, 0.0)
+                        #   ETV is defined as the total number of pixels that enhance around 2 min post contrast injection 
+                        #   (Henderson et al., 2018), (Panthi et al., 2023)
+                          'ETV': np.where(ETVthreshold > 0, 1.0, 0.0)
                           }
             
         
@@ -1991,7 +1995,7 @@ class quantificationLogic(ScriptedLoadableModuleLogic):
 
         nameColumn.InsertNextValue('ETV (Enhanced Tumour Volume)')
         volumeColumn.InsertNextValue(np.round(ETVstats[0],3))
-        distColumn.InsertNextValue(np.round(100.0, 2))
+        distColumn.InsertNextValue(np.round(100 * ETVstats[1]/ETVstats[1], 2))
          
         # JU - Update table and plot - TODO: I think this should be moved to a different function
         slicer.util.updateTableFromArray(tableNodeDict['TICTable'][0], time_intensity_curve, tableNodeDict['TICTable'][1])
